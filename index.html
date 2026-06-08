@@ -94,7 +94,9 @@ function Training({exes,setSaved,user,cfg,setCfg,sessionReps,setSessionReps,sess
   const nKg=ex=>{const curKg=getKg(ex);if(!curKg)return null;const reps=sessionReps?.[activeSess]?.[ex.id]||{};const m=Math.max(parseInt(reps.r1)||0,parseInt(reps.r2)||0);return m>=ex.hi?rKg(curKg*1.05):null;};
   const doSaveKg=(ex,val)=>{const kg=parseFloat(val);if(isNaN(kg)||kg<=0)return setEditKg(null);const newSK={...sessionKg};if(!newSK[activeSess])newSK[activeSess]={};newSK[activeSess][ex.id]=kg;setSessionKg(newSK);localStorage.setItem(`bas_${user}_sessKg`,JSON.stringify(newSK));setEditKg(null);setSaved(false);};
   const prevBestSet=ex=>{if(!hist||!hist.length)return null;for(let i=hist.length-1;i>=0;i--){const w=hist[i];const reps=w.sr?.[activeSess]?.[ex.id];if(!reps)continue;const r1=parseInt(reps.r1)||0,r2=parseInt(reps.r2)||0;if(r1===0&&r2===0)continue;const bestReps=Math.max(r1,r2);const kg=(w.sk?.[activeSess]?.[ex.id])||getKg(ex);if(kg)return{reps:bestReps,kg};}return null;};
-  const sessExes=(cfg.assign[activeSess]||[]).map(id=>exes.find(e=>e.id===id)).filter(Boolean);
+  const calExes=exes.filter(e=>String(e.m||'').toLowerCase()==='calentamiento'&&e.url);
+  const sessExes=(cfg.assign[activeSess]||[]).map(id=>exes.find(e=>e.id===id)).filter(e=>e&&String(e.m||'').toLowerCase()!=='calentamiento');
+  const [calOpen,setCalOpen]=useState(false);
 
   if(configuring)return h('div',null,
     h('div',{style:card},h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center'}},h('div',{style:{fontSize:'15px',fontWeight:'800'}},'⚙️ Configurar rutina'),h('button',{onClick:()=>setConfiguring(false),style:{background:G,color:'#fff',border:'none',borderRadius:'8px',padding:'8px 16px',fontSize:'13px',fontWeight:'700',cursor:'pointer'}},'Listo ✓'))),
@@ -121,6 +123,22 @@ function Training({exes,setSaved,user,cfg,setCfg,sessionReps,setSessionReps,sess
       h('div',{style:{display:'flex',gap:'6px'}},SESS.map(s=>h('button',{key:s,onClick:()=>setActiveSess(s),style:{flex:1,padding:'10px 4px',fontSize:'14px',cursor:'pointer',border:'2px solid',borderRadius:'8px',display:'flex',flexDirection:'column',alignItems:'center',gap:'2px',fontWeight:activeSess===s?'800':'400',color:activeSess===s?'#111':'#999',background:activeSess===s?'#F0F0F0':'#fff',borderColor:activeSess===s?'rgba(0,0,0,0.2)':'rgba(0,0,0,0.08)'}},
         h('span',{style:{fontSize:'18px',fontWeight:'900'}},s),h('span',{style:{fontSize:'9px',color:'#999'}},(cfg.assign[s]||[]).length+' ej.')
       )))
+    ),
+    calExes.length>0&&h('div',{style:{...card,marginBottom:'10px'}},
+      h('div',{onClick:()=>setCalOpen(o=>!o),style:{display:'flex',justifyContent:'space-between',alignItems:'center',cursor:'pointer'}},
+        h('div',{style:{display:'flex',alignItems:'center',gap:'8px'}},
+          h('span',{style:{fontSize:'16px'}},'🔥'),
+          h('div',{style:{fontSize:'13px',fontWeight:'700',color:'#111'}},'Calentamiento'),
+          h('span',{style:{fontSize:'11px',color:'#999'}},calExes.length+' opciones')
+        ),
+        h('span',{style:{fontSize:'12px',color:'#999',fontWeight:'700'}},calOpen?'▲':'▼')
+      ),
+      calOpen&&h('div',{style:{marginTop:'12px',display:'flex',gap:'8px',overflowX:'auto',paddingBottom:'4px'}},
+        calExes.map(ex=>h('a',{key:ex.id,href:ex.url,target:'_blank',rel:'noreferrer',style:{flexShrink:0,background:'#F5F5F5',border:'1px solid rgba(0,0,0,0.08)',borderRadius:'10px',padding:'10px 14px',textDecoration:'none',display:'flex',flexDirection:'column',gap:'4px',minWidth:'130px'}},
+          h('div',{style:{fontSize:'12px',fontWeight:'700',color:'#111'}},ex.n),
+          h('div',{style:{fontSize:'11px',color:B,fontWeight:'600'}},'▶ Ver video')
+        ))
+      )
     ),
     sessExes.length===0
       ?h('div',{style:{...card,textAlign:'center',padding:'30px'}},h('div',{style:{fontSize:'30px',marginBottom:'8px'}},'📋'),h('div',{style:{fontSize:'14px',color:'#999'}},'Sin ejercicios asignados'),h('button',{onClick:()=>setConfiguring(true),style:{marginTop:'12px',background:'#111',color:'#fff',border:'none',borderRadius:'8px',padding:'10px 20px',fontSize:'13px',cursor:'pointer'}},'⚙️ Configurar'))
