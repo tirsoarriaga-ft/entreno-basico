@@ -212,7 +212,8 @@ function App(){
           const assign={};
           ['A','B','C','D'].slice(0,num).forEach(s=>{
             const nombres=String(fila['Sesion'+s]||'').split(',').map(n=>n.trim()).filter(Boolean);
-            assign[s]=nombres.map(nombre=>{const ex=exes.find(e=>e.n.trim().toLowerCase()===nombre.toLowerCase());return ex?ex.id:null;}).filter(Boolean);
+            const norm=s=>s.trim().toLowerCase().replace(/[áàä]/g,'a').replace(/[éèë]/g,'e').replace(/[íìï]/g,'i').replace(/[óòö]/g,'o').replace(/[úùü]/g,'u').replace(/ñ/g,'n');
+            assign[s]=nombres.map(nombre=>{const ex=exes.find(e=>norm(e.n)===norm(nombre));return ex?ex.id:null;}).filter(Boolean);
           });
           const newCfg={num,assign};setCfg(newCfg);localStorage.setItem(CFG_KEY(user),JSON.stringify(newCfg));
         }
