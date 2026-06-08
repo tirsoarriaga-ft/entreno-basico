@@ -22,11 +22,7 @@ const card={background:'#fff',border:'1px solid rgba(0,0,0,0.09)',borderRadius:'
 const lbl={fontSize:'10px',color:'#999',fontWeight:'600',textTransform:'uppercase',letterSpacing:'0.06em',marginBottom:'6px'};
 const inp={width:'100%',padding:'10px',border:'1px solid rgba(0,0,0,0.1)',borderRadius:'8px',fontSize:'15px',color:'#111',background:'#fff'};
 
-const DEFAULT_EXES=[
-  {id:1,n:'Press Banca',m:'Pecho',low:8,hi:12,kg:undefined,url:'',r1:'',r2:''},
-  {id:2,n:'Sentadilla',m:'Piernas',low:8,hi:12,kg:undefined,url:'',r1:'',r2:''},
-  {id:3,n:'Peso Muerto',m:'Espalda',low:6,hi:10,kg:undefined,url:'',r1:'',r2:''},
-];
+const DEFAULT_EXES=[];
 const rKg=kg=>Math.ceil(kg/2.5)*2.5;
 const SK=(id,u)=>`bas_${u}_${id}`;
 const HK=u=>`bas_${u}_hist`;
