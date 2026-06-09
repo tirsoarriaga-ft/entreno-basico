@@ -239,7 +239,13 @@ function App(){
 
   function load(num){
     const id=`sem_${num||1}`;
-    try{const r=localStorage.getItem(SK(id,user));if(r){const d=JSON.parse(r);if(d.sr)setSessionReps(d.sr);else setSessionReps({});setSaved(true);}else{setSessionReps({});setSaved(false);}}catch(e){setSessionReps({});setSaved(false);}
+    try{
+      const draft=localStorage.getItem(`bas_${user}_draft_${id}`);
+      const saved=localStorage.getItem(SK(id,user));
+      const d=draft?JSON.parse(draft):(saved?JSON.parse(saved):null);
+      if(d){if(d.sr)setSessionReps(d.sr);else setSessionReps({});setSaved(!!saved);}
+      else{setSessionReps({});setSaved(false);}
+    }catch(e){setSessionReps({});setSaved(false);}
     loadH();
   }
   function loadH(){
@@ -271,9 +277,16 @@ function App(){
     if(!saved)save();
     const nextNum=(parseInt(localStorage.getItem(`bas_${user}_wknum`))||1)+1;
     localStorage.setItem(`bas_${user}_wknum`,String(nextNum));
+    localStorage.removeItem(`bas_${user}_draft_sem_${nextNum}`);
     setWk(getWkForNum(user,nextNum));
     setSessionReps({});setSaved(false);
   }
+
+  // Auto-guardar borrador ante cualquier cambio de reps
+  useEffect(()=>{
+    if(!user||!wk.id||!wk.num)return;
+    localStorage.setItem(`bas_${user}_draft_${wk.id}`,JSON.stringify({sr:sessionReps}));
+  },[sessionReps,user,wk.id]);
 
   const exOptions=useMemo(()=>{
     const opts=[];const nameCount={};
