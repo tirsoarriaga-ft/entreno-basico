@@ -202,6 +202,15 @@ function App(){
     if(!localStorage.getItem(`bas_${user}_startdate`))localStorage.setItem(`bas_${user}_startdate`,new Date().toISOString().split('T')[0]);
     const wkNum=parseInt(localStorage.getItem(`bas_${user}_wknum`))||1;
     setWk(getWkForNum(user,wkNum));
+    // Restaurar borrador inmediatamente antes del fetch
+    try{
+      const wkId=`sem_${wkNum}`;
+      const draftStr=localStorage.getItem(`bas_${user}_draft_${wkId}`);
+      const savedStr=localStorage.getItem(SK(wkId,user));
+      const d=draftStr?JSON.parse(draftStr):(savedStr?JSON.parse(savedStr):null);
+      if(d&&d.sr)setSessionReps(d.sr);
+      setSaved(!!savedStr);
+    }catch(e){}
     setCfg(()=>{try{return JSON.parse(localStorage.getItem(CFG_KEY(user)))||defCfg;}catch(e){return defCfg;}});
     try{const sk=localStorage.getItem(`bas_${user}_sessKg`);if(sk)setSessionKg(JSON.parse(sk)||{});}catch(e){}
     setExesReady(false);
@@ -212,7 +221,7 @@ function App(){
           const exData=rows.map((r,i)=>({id:i+1,n:String(r.Nombre||r.NOMBRE||''),m:String(r.Musculo||r.Músculo||r.MÚSCULO||''),low:parseInt(r.RepMin)||8,hi:parseInt(r.RepMax)||12,url:String(r.Tutorial||''),r1:'',r2:''}));
           setExes(exData);
         }
-      }).catch(()=>{}).finally(()=>{setExesReady(true);load(wkNum);});
+      }).catch(()=>{}).finally(()=>{setExesReady(true);draftReady.current=true;load(wkNum);});
   },[user]);
 
   useEffect(()=>{
@@ -282,9 +291,11 @@ function App(){
     setSessionReps({});setSaved(false);
   }
 
+  const draftReady=useRef(false);
+
   // Auto-guardar borrador ante cualquier cambio de reps
   useEffect(()=>{
-    if(!user||!wk.id||!wk.num)return;
+    if(!user||!wk.id||!wk.num||!draftReady.current)return;
     localStorage.setItem(`bas_${user}_draft_${wk.id}`,JSON.stringify({sr:sessionReps}));
   },[sessionReps,user,wk.id]);
 
