@@ -91,9 +91,12 @@ function Training({exes,setSaved,user,cfg,setCfg,sessionReps,setSessionReps,sess
   const getKg=ex=>sessionKg?.[activeSess]?.[ex.id];
   const getRep=(sess,exId,k)=>sessionReps?.[sess]?.[exId]?.[k]||'';
   const setRep=(sess,exId,k,v)=>{setSessionReps(prev=>{const next={...prev};if(!next[sess])next[sess]={};if(!next[sess][exId])next[sess][exId]={};next[sess][exId][k]=v;return next;});setSaved(false);};
-  const nKg=ex=>{const curKg=getKg(ex);if(!curKg)return null;const reps=sessionReps?.[activeSess]?.[ex.id]||{};const m=Math.max(parseInt(reps.r1)||0,parseInt(reps.r2)||0);return m>=ex.hi?rKg(curKg*1.05):null;};
+  const numSeries=Math.min(4,Math.max(2,cfg?.series||2));
+  const SERIES_KEYS=['r1','r2','r3','r4'].slice(0,numSeries);
+  const nKg=ex=>{const curKg=getKg(ex);if(!curKg)return null;const r1=parseInt(sessionReps?.[activeSess]?.[ex.id]?.r1)||0;return r1>=ex.hi?rKg(curKg*1.05):null;};
+  const suggestedKg=(ex,i)=>{if(i===0)return null;const prevKey='r'+i;const prevReps=parseInt(sessionReps?.[activeSess]?.[ex.id]?.[prevKey])||0;if(!prevReps)return null;const mitad=(ex.low+ex.hi)/2;if(prevReps>mitad)return null;const curKg=getKg(ex);if(!curKg)return null;return rKg(curKg*0.9);};
   const doSaveKg=(ex,val)=>{const kg=parseFloat(val);if(isNaN(kg)||kg<=0)return setEditKg(null);const newSK={...sessionKg};if(!newSK[activeSess])newSK[activeSess]={};newSK[activeSess][ex.id]=kg;setSessionKg(newSK);localStorage.setItem(`bas_${user}_sessKg`,JSON.stringify(newSK));setEditKg(null);setSaved(false);};
-  const prevBestSet=ex=>{if(!hist||!hist.length)return null;for(let i=hist.length-1;i>=0;i--){const w=hist[i];const reps=w.sr?.[activeSess]?.[ex.id];if(!reps)continue;const r1=parseInt(reps.r1)||0,r2=parseInt(reps.r2)||0;if(r1===0&&r2===0)continue;const bestReps=Math.max(r1,r2);const kg=(w.sk?.[activeSess]?.[ex.id])||getKg(ex);if(kg)return{reps:bestReps,kg};}return null;};
+  const prevBestSet=ex=>{if(!hist||!hist.length)return null;for(let i=hist.length-1;i>=0;i--){const w=hist[i];const reps=w.sr?.[activeSess]?.[ex.id];if(!reps)continue;const r1=parseInt(reps.r1)||0;if(r1===0)continue;const kg=(w.sk?.[activeSess]?.[ex.id])||getKg(ex);if(kg)return{reps:r1,kg};}return null;};
   const calExes=exes.filter(e=>String(e.m||'').toLowerCase()==='calentamiento'&&e.url);
   const sessExes=(cfg.assign[activeSess]||[]).map(id=>exes.find(e=>e.id===id)).filter(e=>e&&String(e.m||'').toLowerCase()!=='calentamiento');
   const [calOpen,setCalOpen]=useState(false);
@@ -165,10 +168,10 @@ function Training({exes,setSaved,user,cfg,setCfg,sessionReps,setSessionReps,sess
             ),
             to&&ex.url&&h('div',{style:{background:'#EBF4FF',border:'1px solid rgba(55,138,221,0.2)',borderRadius:'8px',padding:'10px 12px',marginBottom:'10px'}},h('a',{href:ex.url,target:'_blank',rel:'noreferrer',style:{fontSize:'13px',color:B,fontWeight:'600',textDecoration:'none'}},'▶ Ver video tutorial')),
             h('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px',marginBottom:nk?'10px':'0'}},
-              [{k:'r1',l:'Serie 1'},{k:'r2',l:'Serie 2'}].map(({k,l})=>h('div',{key:k},
-                h('div',{style:lbl},l),
-                h('input',{type:'text',inputMode:'numeric',placeholder:'Reps',value:getRep(activeSess,ex.id,k),onChange:e=>setRep(activeSess,ex.id,k,e.target.value),style:{...inp,textAlign:'center',fontSize:'22px',fontWeight:'700'}})
-              ))
+              SERIES_KEYS.map((k,i)=>{const sug=suggestedKg(ex,i);return h('div',{key:k},
+                h('div',{style:{...lbl,display:'flex',justifyContent:'space-between'}},h('span',null,'Serie '+(i+1)),sug&&h('span',{style:{color:'#F59E0B',fontWeight:'700',fontSize:'10px'}},'↓ '+sug+' kg')),
+                h('input',{type:'text',inputMode:'numeric',placeholder:'Reps',value:getRep(activeSess,ex.id,k),onChange:e=>setRep(activeSess,ex.id,k,e.target.value),style:{...inp,textAlign:'center',fontSize:'22px',fontWeight:'700',borderColor:sug?'#F59E0B':'rgba(0,0,0,0.1)'}})
+              );})
             ),
             nk&&h('div',{style:{background:'#EAF7F2',border:'1px solid #A3DFC8',borderRadius:'8px',padding:'10px 12px',display:'flex',justifyContent:'space-between',alignItems:'center'}},
               h('span',{style:{fontSize:'12px',color:G,fontWeight:'600'}},'Próxima sesión'),
@@ -238,7 +241,7 @@ function App(){
             const norm=s=>s.trim().toLowerCase().replace(/[áàä]/g,'a').replace(/[éèë]/g,'e').replace(/[íìï]/g,'i').replace(/[óòö]/g,'o').replace(/[úùü]/g,'u').replace(/ñ/g,'n');
             assign[s]=nombres.map(nombre=>{const ex=exes.find(e=>norm(e.n)===norm(nombre));return ex?ex.id:null;}).filter(Boolean);
           });
-          const newCfg={num,assign};setCfg(newCfg);localStorage.setItem(CFG_KEY(user),JSON.stringify(newCfg));
+          const newCfg={num,assign,series:Math.min(4,Math.max(2,parseInt(fila.Series)||2))};setCfg(newCfg);localStorage.setItem(CFG_KEY(user),JSON.stringify(newCfg));
         }
       }).catch(()=>{});
   },[user,exesReady]);
@@ -268,7 +271,7 @@ function App(){
       Object.entries(curSR).forEach(([sess,sessData])=>{
         Object.entries(sessData).forEach(([exId,reps])=>{
           const curKg=(sessionKg[sess]?.[exId]);if(!curKg)return;
-          const best=Math.max(parseInt(reps.r1)||0,parseInt(reps.r2)||0);
+          const best=parseInt(reps.r1)||0;
           const ex=exes.find(e=>e.id===parseInt(exId));
           if(ex&&best>=ex.hi){if(!newSK[sess])newSK[sess]={};newSK[sess][exId]=rKg(curKg*1.05);}
         });
@@ -314,7 +317,7 @@ function App(){
       const reps=w.sr?.[opt.sessId]?.[opt.exId];
       const kg=(w.sk?.[opt.sessId]?.[opt.exId])||exData?.kg;
       if(!kg||!reps)return;
-      const best=Math.max(parseInt(reps.r1)||0,parseInt(reps.r2)||0);
+      const best=parseInt(reps.r1)||0;
       if(best>0){d.push(calcE1RM(kg,best));l.push(w.wi?.replace('sem_','S')||'');}
     });
     return{data:d,labels:l};
