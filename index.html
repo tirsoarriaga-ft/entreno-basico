@@ -263,7 +263,7 @@ function App(){
   function loadH(){
     try{const list=JSON.parse(localStorage.getItem(HK(user))||'[]');const w=list.map(id=>{try{return JSON.parse(localStorage.getItem(SK(id,user)));}catch(e){return null;}}).filter(Boolean).sort((a,b)=>(a.wi||'').localeCompare(b.wi||''));setHist(w);}catch(e){setHist([]);}
   }
-  function save(){
+  function doSave(completeWeek){
     setSaving(true);
     try{
       const curSR=sessionRepsRef.current;
@@ -281,10 +281,12 @@ function App(){
       localStorage.setItem(SK(wk.id,user),JSON.stringify(d));
       const list=JSON.parse(localStorage.getItem(HK(user))||'[]');
       if(!list.includes(wk.id)){list.push(wk.id);localStorage.setItem(HK(user),JSON.stringify(list));}
-      setSaved(true);loadH();
+      setSaved(completeWeek?true:'progreso');loadH();
     }catch(e){}
     setSaving(false);
   }
+  function save(){doSave(true);}
+  function saveProgress(){doSave(false);}
   function resetWeek(){
     if(!window.confirm('¿Resetear la semana actual? Se borrarán las reps cargadas. Los kg se mantienen.'))return;
     setSessionReps({});setSaved(false);
@@ -376,10 +378,11 @@ function App(){
         h('div',{style:{fontSize:'11px',color:'#999',marginTop:'1px'}},wk.label)
       ),
       h('div',{style:{display:'flex',flexDirection:'column',gap:'5px',alignItems:'flex-end'}},
-        h('button',{onClick:save,disabled:saving||saved,style:{border:saved?'1px solid #A3DFC8':'none',borderRadius:'8px',padding:'8px 14px',fontSize:'12px',fontWeight:'700',cursor:saved?'default':'pointer',background:saved?'#EAF7F2':'#111',color:saved?G:'#fff'}},saving?'Guardando...':saved?'✓ Guardado':'Guardar semana'),
-        h('div',{style:{display:'flex',gap:'12px',marginTop:'4px'}},
-          h('button',{onClick:resetWeek,style:{background:'none',border:'none',cursor:'pointer',fontSize:'11px',color:'#EF4444',padding:0}},'↺ Resetear'),
-          h('button',{onClick:newWeek,style:{background:'none',border:'none',cursor:'pointer',fontSize:'11px',color:'#999',padding:0}},'Nueva sem →')
+        h('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'6px'}},
+          h('button',{onClick:saveProgress,disabled:saving,style:{borderRadius:'8px',padding:'8px 10px',fontSize:'11px',fontWeight:'700',cursor:'pointer',border:'1px solid rgba(0,0,0,0.12)',background:saved==='progreso'?'#EBF4FF':'#fff',color:saved==='progreso'?B:'#555'}},saving?'...':(saved==='progreso'?'✓ Progreso':'Guardar progreso')),
+          h('button',{onClick:save,disabled:saving||saved===true,style:{borderRadius:'8px',padding:'8px 10px',fontSize:'11px',fontWeight:'700',cursor:saving||saved===true?'default':'pointer',border:'none',background:saved===true?'#EAF7F2':'#111',color:saved===true?G:'#fff'}},saving?'...':(saved===true?'✓ Sem. guardada':'Guardar semana')),
+          h('button',{onClick:resetWeek,style:{borderRadius:'8px',padding:'8px 10px',fontSize:'11px',fontWeight:'600',cursor:'pointer',border:'1px solid rgba(239,68,68,0.3)',background:'#FFF5F5',color:'#EF4444'}},'↺ Resetear'),
+          h('button',{onClick:newWeek,style:{borderRadius:'8px',padding:'8px 10px',fontSize:'11px',fontWeight:'600',cursor:'pointer',border:'1px solid rgba(0,0,0,0.1)',background:'#F8F8F8',color:'#555'}},'Nueva sem →')
         )
       )
     ),
