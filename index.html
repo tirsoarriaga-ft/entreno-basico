@@ -285,6 +285,11 @@ function App(){
     }catch(e){}
     setSaving(false);
   }
+  function resetWeek(){
+    if(!window.confirm('¿Resetear la semana actual? Se borrarán las reps cargadas. Los kg se mantienen.'))return;
+    setSessionReps({});setSaved(false);
+    localStorage.removeItem(`bas_${user}_draft_${wk.id}`);
+  }
   function newWeek(){
     if(!saved)save();
     const nextNum=(parseInt(localStorage.getItem(`bas_${user}_wknum`))||1)+1;
@@ -372,7 +377,10 @@ function App(){
       ),
       h('div',{style:{display:'flex',flexDirection:'column',gap:'5px',alignItems:'flex-end'}},
         h('button',{onClick:save,disabled:saving||saved,style:{border:saved?'1px solid #A3DFC8':'none',borderRadius:'8px',padding:'8px 14px',fontSize:'12px',fontWeight:'700',cursor:saved?'default':'pointer',background:saved?'#EAF7F2':'#111',color:saved?G:'#fff'}},saving?'Guardando...':saved?'✓ Guardado':'Guardar semana'),
-        h('button',{onClick:newWeek,style:{background:'none',border:'none',cursor:'pointer',fontSize:'11px',color:'#999',padding:0}},'Nueva semana →')
+        h('div',{style:{display:'flex',gap:'12px',marginTop:'4px'}},
+          h('button',{onClick:resetWeek,style:{background:'none',border:'none',cursor:'pointer',fontSize:'11px',color:'#EF4444',padding:0}},'↺ Resetear'),
+          h('button',{onClick:newWeek,style:{background:'none',border:'none',cursor:'pointer',fontSize:'11px',color:'#999',padding:0}},'Nueva sem →')
+        )
       )
     ),
     h('div',{style:{padding:'14px',paddingBottom:'80px'}},
