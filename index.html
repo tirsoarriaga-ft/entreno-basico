@@ -52,10 +52,15 @@ function calcE1RM(kg,reps){if(!reps||reps<=0)return kg;return Math.round(kg*(1+r
 function getWkForNum(user,num){
   const startId=localStorage.getItem(`bas_${user}_startdate`)||new Date().toISOString().split('T')[0];
   const startMon=new Date(startId+'T12:00:00');
+  const day=startMon.getDay();
+  const diffToMon=day===0?-6:1-day;
+  startMon.setDate(startMon.getDate()+diffToMon);
   const wkMon=new Date(startMon);wkMon.setDate(startMon.getDate()+(num-1)*7);
   const wkSun=new Date(wkMon);wkSun.setDate(wkMon.getDate()+6);
-  const fmt=d=>d.toLocaleDateString('es-AR',{day:'numeric',month:'short'});
-  return{id:`sem_${num}`,num,label:`${fmt(wkMon)} — ${fmt(wkSun)}`};
+  const fmtDay=d=>d.toLocaleDateString('es-AR',{day:'numeric'});
+  const fmtMes=d=>d.toLocaleDateString('es-AR',{month:'short'}).replace('.','');
+  const label=`Sem ${num} · ${fmtDay(wkMon)}-${fmtDay(wkSun)} ${fmtMes(wkSun).charAt(0).toUpperCase()+fmtMes(wkSun).slice(1)}`;
+  return{id:`sem_${num}`,num,label};
 }
 
 function LineChart({data,color,h:ht=120,labels}){
@@ -376,6 +381,16 @@ function App(){
     setWk(getWkForNum(user,nextNum));
     setSessionReps({});setSaved(false);
   }
+  function prevWeek(){
+    const curNum=parseInt(localStorage.getItem(`bas_${user}_wknum`))||1;
+    if(curNum<=1)return;
+    const prevNum=curNum-1;
+    localStorage.setItem(`bas_${user}_wknum`,String(prevNum));
+    setWk(getWkForNum(user,prevNum));
+    setSessionReps({});setSaved(false);
+    draftReady.current=false;
+    load(prevNum);
+  }
 
   const draftReady=useRef(false);
 
@@ -458,6 +473,7 @@ function App(){
           h('button',{onClick:saveProgress,disabled:saving,style:{borderRadius:'8px',padding:'8px 10px',fontSize:'11px',fontWeight:'700',cursor:'pointer',border:'1px solid rgba(0,0,0,0.12)',background:saved==='progreso'?'#EBF4FF':'#fff',color:saved==='progreso'?B:'#555'}},saving?'...':(saved==='progreso'?'✓ Progreso':'Guardar progreso')),
           h('button',{onClick:save,disabled:saving||saved===true,style:{borderRadius:'8px',padding:'8px 10px',fontSize:'11px',fontWeight:'700',cursor:saving||saved===true?'default':'pointer',border:'none',background:saved===true?'#EAF7F2':'#111',color:saved===true?G:'#fff'}},saving?'...':(saved===true?'✓ Sem. guardada':'Guardar semana')),
           h('button',{onClick:resetWeek,style:{borderRadius:'8px',padding:'8px 10px',fontSize:'11px',fontWeight:'600',cursor:'pointer',border:'1px solid rgba(239,68,68,0.3)',background:'#FFF5F5',color:'#EF4444'}},'↺ Resetear'),
+          h('button',{onClick:prevWeek,disabled:(wk.num||1)<=1,style:{borderRadius:'8px',padding:'8px 10px',fontSize:'11px',fontWeight:'600',cursor:(wk.num||1)<=1?'default':'pointer',border:'1px solid rgba(0,0,0,0.1)',background:'#F8F8F8',color:(wk.num||1)<=1?'#ccc':'#555'}},'← Sem anterior'),
           h('button',{onClick:newWeek,style:{borderRadius:'8px',padding:'8px 10px',fontSize:'11px',fontWeight:'600',cursor:'pointer',border:'1px solid rgba(0,0,0,0.1)',background:'#F8F8F8',color:'#555'}},'Nueva sem →')
         )
       )
