@@ -366,7 +366,6 @@ function App(){
 
   useEffect(()=>{
     if(!user)return;
-    if(!localStorage.getItem(`bas_${user}_startdate`))localStorage.setItem(`bas_${user}_startdate`,new Date().toISOString().split('T')[0]);
     const wkNum=parseInt(localStorage.getItem(`bas_${user}_wknum`))||1;
     setWk(getWkForNum(user,wkNum));
     // Restaurar borrador inmediatamente antes del fetch
@@ -412,6 +411,9 @@ function App(){
             }).filter(v=>v!==null);
           });
           const newCfg={num,assign,series:Math.min(4,Math.max(2,parseInt(fila.Series)||2)),bloque:String(fila.Bloque||'volumen').toLowerCase().trim(),bloqueInicio:parseInt(fila.BloqueInicio)||1,hiit:['A','B','C','D'].map(s=>{const nom=String(fila['HIIT'+s]||'').trim();if(!nom)return null;return{id:s,nom,detalle:String(fila['HIIT'+s+'Detalle']||'').trim(),ritmo:String(fila['HIIT'+s+'Ritmo']||'').trim()};}).filter(Boolean)};setCfg(newCfg);localStorage.setItem(CFG_KEY(user),JSON.stringify(newCfg));
+          const fechaInicio=String(fila.FechaInicio||'').trim();
+          if(fechaInicio){localStorage.setItem(`bas_${user}_startdate`,fechaInicio);}
+          else if(!localStorage.getItem(`bas_${user}_startdate`)){localStorage.setItem(`bas_${user}_startdate`,new Date().toISOString().split('T')[0]);}
         }
       }).catch(()=>{});
   },[user,exesReady]);
