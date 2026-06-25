@@ -40,9 +40,10 @@ const TECNICAS=[
   {id:'ne',n:'Negativas',d:'Al llegar al fallo, bajás el peso muy lento (4-6 seg) con ayuda para subir. Solo la fase excéntrica.'},
 ];
 const BLOQUES={
-  volumen:   {label:'Volumen',     color:'#1D9E75',emoji:'📈',hint:null},
-  intensidad:{label:'Intensidad',  color:'#378ADD',emoji:'🏋️',hint:null},
-  man:       {label:'Mantenimiento',color:'#6B7280',emoji:'🔄',hint:null},
+  volumen:   {label:'Volumen',     color:'#1D9E75',emoji:'📈',hint:'Triple progresión: más reps dentro del rango → más kg → más series cada 2 semanas.'},
+  intensidad:{label:'Intensidad',  color:'#378ADD',emoji:'🏋️',hint:'Doble progresión: más reps → más kg al alcanzar el techo. Última serie con técnica de intensidad.'},
+  man:       {label:'Mantenimiento',color:'#6B7280',emoji:'🔄',hint:'Doble progresión normal. Variables estables, sin cambios automáticos de series.'},
+  base:      {label:'Progresión Base',color:'#F59E0B',emoji:'🌱',hint:'Si el entrenamiento anterior se sintió cómodo y controlado, hoy es momento de subir un poco el peso.'},
   deporte:   {label:'Deporte',     color:'#8B5CF6',emoji:'🏀',hint:'Velocidad máxima en cada rep. Terminá la serie cuando notes pérdida de velocidad.'},
   rehab:     {label:'Rehabilitación',color:'#EF4444',emoji:'🏥',hint:'Registrá los kg y reps de cada ejercicio. La progresión la indicará tu coach.'},
 };
@@ -212,7 +213,7 @@ function Training({exes,setSaved,user,cfg,setCfg,sessionReps,setSessionReps,sess
   const wkNum=wk?.num||1;
   const bloqueInicio=cfg?.bloqueInicio||1;
   const weeksInBlock=Math.max(0,wkNum-bloqueInicio);
-  const numSeries=bloque==='volumen'?Math.min(4,seriesBase+Math.floor(weeksInBlock/2)):seriesBase;
+  const numSeries=bloque==='base'?4:bloque==='volumen'?Math.min(4,seriesBase+Math.floor(weeksInBlock/2)):seriesBase;
   const semanasParaSiguienteSerie=(bloque==='volumen'&&numSeries<4)?(2-(weeksInBlock%2)||2):null;
   const hasProgression=bloque==='volumen'||bloque==='intensidad'||bloque==='man';
   const SERIES_KEYS=['r1','r2','r3','r4'].slice(0,numSeries);
