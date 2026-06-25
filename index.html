@@ -83,6 +83,93 @@ function LineChart({data,color,h:ht=120,labels}){
   );
 }
 
+const iHiit=()=>({regs:{},hiitKg:{}});
+
+function SelBtn({val,cur,onClick,color}){
+  const sel=val===cur;
+  return h('button',{onClick,style:{flex:1,padding:'10px 4px',fontSize:'12px',fontWeight:sel?'700':'400',cursor:'pointer',borderRadius:'8px',border:'2px solid',color:sel?(color||'#111'):'#999',background:sel?((color||'#111')+'18'):'#fff',borderColor:sel?(color||'#111'):'rgba(0,0,0,0.08)'}},val);
+}
+
+const HIIT_SENS={
+  'RST':'Muy alta, manteniendo calidad de sprint',
+  'SIT':'Muy alta con dolor muscular acumulado',
+  'Intervalos':'Moderada por rep, fatiga alta acumulada',
+  'Aeróbico':'Controlada y sostenible (RPE 6)',
+  'Activación':'Suave, sin esfuerzo real (RPE 5)',
+  'Intervalos runner':'Alta, exigente pero controlada (RPE 8)',
+  'Tempo':'Moderada-alta sostenida (RPE 7)',
+};
+function Hiit({cfg,hiitData,setHiitData,setSaved}){
+  const sess=cfg?.hiit||[];
+  const [activeS,setActiveS]=useState(sess[0]?.id||'A');
+  const [editField,setEditField]=useState(null);
+  const [editVal,setEditVal]=useState('');
+  if(!sess.length)return h('div',{style:{...card,textAlign:'center',padding:'32px'}},h('div',{style:{fontSize:'32px',marginBottom:'8px'}},'🏃'),h('div',{style:{fontSize:'14px',color:'#999'}},'Sin protocolo HIIT asignado'));
+  const curS=sess.find(s=>s.id===activeS)||sess[0];
+  const getSessVal=(sessId,field)=>hiitData?.hiitKg?.[sessId]?.[field]||'';
+  const setSessVal=(sessId,field,val)=>{setHiitData(prev=>{const n={...prev,hiitKg:{...prev.hiitKg,[sessId]:{...(prev.hiitKg?.[sessId]||{}),[field]:val}}};return n;});setSaved(false);};
+  const getReg=(sessId,field)=>hiitData?.regs?.[sessId]?.[field]||'';
+  const setReg=(sessId,field,val)=>{setHiitData(prev=>{const n={...prev,regs:{...prev.regs,[sessId]:{...(prev.regs?.[sessId]||{}),[field]:val}}};return n;});setSaved(false);};
+  const sensEsp=HIIT_SENS[curS.nom]||'—';
+  const detalle=getSessVal(curS.id,'detalle')||curS.detalle;
+  const ritmo=getSessVal(curS.id,'ritmo')||curS.ritmo;
+  return h('div',null,
+    h('div',{style:card},
+      h('div',{style:{...lbl,marginBottom:'8px'}},'Sesión HIIT'),
+      h('div',{style:{display:'flex',gap:'6px'}},sess.map(s=>h('button',{key:s.id,onClick:()=>setActiveS(s.id),style:{flex:1,padding:'10px 4px',fontSize:'13px',cursor:'pointer',border:'2px solid',borderRadius:'8px',fontWeight:activeS===s.id?'800':'400',color:activeS===s.id?'#111':'#999',background:activeS===s.id?'#F0F0F0':'#fff',borderColor:activeS===s.id?'rgba(0,0,0,0.2)':'rgba(0,0,0,0.08)'}},s.id,' ',h('span',{style:{fontSize:'10px',display:'block',marginTop:'2px',color:'#999'}},s.nom))))
+    ),
+    h('div',{style:card},
+      h('div',{style:{fontSize:'15px',fontWeight:'800',marginBottom:'4px'}},curS.nom),
+      h('div',{style:{fontSize:'12px',color:'#999',marginBottom:'12px'}},'Sensación esperada: ',h('span',{style:{color:B,fontWeight:'600'}},sensEsp)),
+      h('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:'8px'}},
+        [{f:'detalle',l:'📍 Protocolo',v:detalle},{f:'ritmo',l:'⏱ Ritmo / Intensidad',v:ritmo}].map(({f,l,v})=>{
+          const editing=editField?.sessId===curS.id&&editField?.field===f;
+          return h('div',{key:f},
+            h('div',{style:lbl},l),
+            editing
+              ?h('input',{type:'text',value:editVal,onChange:e=>setEditVal(e.target.value),onBlur:()=>{setSessVal(curS.id,f,editVal);setEditField(null);},onKeyDown:e=>e.key==='Enter'&&(setSessVal(curS.id,f,editVal),setEditField(null)),autoFocus:true,style:{...inp,fontSize:'14px',fontWeight:'700'}})
+              :h('div',{onClick:()=>{setEditField({sessId:curS.id,field:f});setEditVal(getSessVal(curS.id,f)||v||'');},style:{padding:'10px 12px',background:'#F8F8F8',borderRadius:'8px',fontSize:'14px',fontWeight:'700',cursor:'pointer',minHeight:'40px'}},v||h('span',{style:{color:'#ccc'}},'— tocar para editar'))
+          );
+        })
+      )
+    ),
+    h('div',{style:card},
+      h('div',{style:{...lbl,marginBottom:'12px'}},'Registro de la semana'),
+      h('div',{style:{marginBottom:'14px'}},
+        h('div',{style:{fontSize:'13px',fontWeight:'700',marginBottom:'8px'}},'¿Cumpliste el protocolo?'),
+        h('div',{style:{display:'flex',gap:'8px'}},
+          h(SelBtn,{val:'Sí',cur:getReg(curS.id,'cumple'),onClick:()=>setReg(curS.id,'cumple','Sí'),color:G}),
+          h(SelBtn,{val:'Parcial',cur:getReg(curS.id,'cumple'),onClick:()=>setReg(curS.id,'cumple','Parcial'),color:O})
+        ),
+        getReg(curS.id,'cumple')==='Parcial'&&h('input',{type:'text',placeholder:'¿Qué fue distinto?',value:getReg(curS.id,'cumpleParcial'),onChange:e=>setReg(curS.id,'cumpleParcial',e.target.value),style:{...inp,marginTop:'8px',fontSize:'13px'}})
+      ),
+      h('div',{style:{marginBottom:'14px'}},
+        h('div',{style:{fontSize:'13px',fontWeight:'700',marginBottom:'4px'}},'¿Cómo fue la exigencia?'),
+        h('div',{style:{fontSize:'11px',color:'#999',marginBottom:'8px'}},'Esperada: '+sensEsp),
+        h('div',{style:{display:'flex',gap:'6px'}},
+          [{v:'Esperada',c:G},{v:'Mayor',c:O},{v:'Menor',c:B}].map(({v,c})=>h(SelBtn,{key:v,val:v,cur:getReg(curS.id,'exig'),onClick:()=>setReg(curS.id,'exig',v),color:c}))
+        )
+      ),
+      h('div',{style:{marginBottom:'14px'}},
+        h('div',{style:{fontSize:'13px',fontWeight:'700',marginBottom:'8px'}},'Fatiga (mismo día)'),
+        h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap'}},
+          ['Nada','Moderada','Alta, me limitó'].map(v=>h(SelBtn,{key:v,val:v,cur:getReg(curS.id,'fatiga'),onClick:()=>setReg(curS.id,'fatiga',v)}))
+        )
+      ),
+      h('div',{style:{marginBottom:'14px'}},
+        h('div',{style:{fontSize:'13px',fontWeight:'700',marginBottom:'8px'}},'Dolor muscular (1-2 días después)'),
+        h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap'}},
+          ['Ninguno','Leve','Moderado','Intenso'].map(v=>h(SelBtn,{key:v,val:v,cur:getReg(curS.id,'dolor'),onClick:()=>setReg(curS.id,'dolor',v)}))
+        )
+      ),
+      h('div',null,
+        h('div',{style:{fontSize:'13px',fontWeight:'700',marginBottom:'8px'}},'Nota libre (opcional)'),
+        h('textarea',{placeholder:'Cómo te sentiste, condiciones del día, etc.',value:getReg(curS.id,'nota'),onChange:e=>setReg(curS.id,'nota',e.target.value),style:{...inp,minHeight:'70px',resize:'none',fontSize:'13px'}})
+      )
+    )
+  );
+}
+
 function Login({onLogin}){
   const [name,setName]=useState('');
   return h('div',{style:{maxWidth:'480px',margin:'0 auto',minHeight:'100vh',background:'#fff',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'40px 24px'}},
@@ -272,6 +359,7 @@ function App(){
   const [cfg,setCfg]=useState(defCfg);
   const [exesReady,setExesReady]=useState(false);
   const [loadingExes,setLoadingExes]=useState(false);
+  const [hiitData,setHiitData]=useState(iHiit());
 
   useEffect(()=>{const s=localStorage.getItem(USER_KEY);if(s)setUser(s);},[]);
 
@@ -322,7 +410,7 @@ function App(){
               return ex?ex.id:null;
             }).filter(v=>v!==null);
           });
-          const newCfg={num,assign,series:Math.min(4,Math.max(2,parseInt(fila.Series)||2)),bloque:String(fila.Bloque||'volumen').toLowerCase().trim(),bloqueInicio:parseInt(fila.BloqueInicio)||1};setCfg(newCfg);localStorage.setItem(CFG_KEY(user),JSON.stringify(newCfg));
+          const newCfg={num,assign,series:Math.min(4,Math.max(2,parseInt(fila.Series)||2)),bloque:String(fila.Bloque||'volumen').toLowerCase().trim(),bloqueInicio:parseInt(fila.BloqueInicio)||1,hiit:['A','B','C','D'].map(s=>{const nom=String(fila['HIIT'+s]||'').trim();if(!nom)return null;return{id:s,nom,detalle:String(fila['HIIT'+s+'Detalle']||'').trim(),ritmo:String(fila['HIIT'+s+'Ritmo']||'').trim()};}).filter(Boolean)};setCfg(newCfg);localStorage.setItem(CFG_KEY(user),JSON.stringify(newCfg));
         }
       }).catch(()=>{});
   },[user,exesReady]);
@@ -336,9 +424,9 @@ function App(){
       const draft=localStorage.getItem(`bas_${user}_draft_${id}`);
       const saved=localStorage.getItem(SK(id,user));
       const d=draft?JSON.parse(draft):(saved?JSON.parse(saved):null);
-      if(d){if(d.sr)setSessionReps(d.sr);else setSessionReps({});setSaved(!!saved);}
-      else{setSessionReps({});setSaved(false);}
-    }catch(e){setSessionReps({});setSaved(false);}
+      if(d){if(d.sr)setSessionReps(d.sr);else setSessionReps({});if(d.hiit)setHiitData(d.hiit);else setHiitData(iHiit());setSaved(!!saved);}
+      else{setSessionReps({});setHiitData(iHiit());setSaved(false);}
+    }catch(e){setSessionReps({});setHiitData(iHiit());setSaved(false);}
     loadH();
   }
   function loadH(){
@@ -358,7 +446,7 @@ function App(){
         });
       });
       setSessionKg(newSK);localStorage.setItem(`bas_${user}_sessKg`,JSON.stringify(newSK));
-      const d={wi:wk.id,wl:wk.label,sr:curSR,sk:newSK,e:exes};
+      const d={wi:wk.id,wl:wk.label,sr:curSR,sk:newSK,e:exes,hiit:hiitData};
       localStorage.setItem(SK(wk.id,user),JSON.stringify(d));
       const list=JSON.parse(localStorage.getItem(HK(user))||'[]');
       if(!list.includes(wk.id)){list.push(wk.id);localStorage.setItem(HK(user),JSON.stringify(list));}
@@ -370,7 +458,7 @@ function App(){
   function saveProgress(){doSave(false);}
   function resetWeek(){
     if(!window.confirm('¿Resetear la semana actual? Se borrarán las reps cargadas. Los kg se mantienen.'))return;
-    setSessionReps({});setSaved(false);
+    setSessionReps({});setHiitData(iHiit());setSaved(false);
     localStorage.removeItem(`bas_${user}_draft_${wk.id}`);
   }
   function newWeek(){
@@ -379,7 +467,7 @@ function App(){
     localStorage.setItem(`bas_${user}_wknum`,String(nextNum));
     localStorage.removeItem(`bas_${user}_draft_sem_${nextNum}`);
     setWk(getWkForNum(user,nextNum));
-    setSessionReps({});setSaved(false);
+    setSessionReps({});setHiitData(iHiit());setSaved(false);
   }
   function prevWeek(){
     const curNum=parseInt(localStorage.getItem(`bas_${user}_wknum`))||1;
@@ -387,7 +475,7 @@ function App(){
     const prevNum=curNum-1;
     localStorage.setItem(`bas_${user}_wknum`,String(prevNum));
     setWk(getWkForNum(user,prevNum));
-    setSessionReps({});setSaved(false);
+    setSessionReps({});setHiitData(iHiit());setSaved(false);
     draftReady.current=false;
     load(prevNum);
   }
@@ -458,9 +546,11 @@ function App(){
     );
   }
 
-  if(!user)return h(Login,{onLogin:login});
-  const TABS=[{id:'d',l:'Inicio',ic:'📈'},{id:'t',l:'Entreno',ic:'🏋️'}];
+  const hiitSess=cfg?.hiit||[];
+  const hasHiit=hiitSess.length>0;
+  const TABS=[{id:'d',l:'Inicio',ic:'📈'},{id:'t',l:'Entreno',ic:'🏋️'},...(hasHiit?[{id:'hiit',l:'HIIT',ic:'🏃'}]:[])];
 
+  if(!user)return h(Login,{onLogin:login});
   return h('div',{style:{maxWidth:'480px',margin:'0 auto',background:'#F5F5F5',minHeight:'100vh'}},
     h('div',{style:{background:'#fff',borderBottom:'1px solid rgba(0,0,0,0.09)',padding:'14px 18px',position:'sticky',top:0,zIndex:10,display:'flex',justifyContent:'space-between',alignItems:'center'}},
       h('div',null,
@@ -480,7 +570,8 @@ function App(){
     ),
     h('div',{style:{padding:'14px',paddingBottom:'80px'}},
       tab==='d'&&h(Dashboard,null),
-      tab==='t'&&h(Training,{key:'t',exes,setSaved,user,cfg,setCfg,sessionReps,setSessionReps,sessionKg,setSessionKg,hist,wk,loadingExes})
+      tab==='t'&&h(Training,{key:'t',exes,setSaved,user,cfg,setCfg,sessionReps,setSessionReps,sessionKg,setSessionKg,hist,wk,loadingExes}),
+      tab==='hiit'&&h(Hiit,{key:'hiit',cfg,hiitData,setHiitData,setSaved})
     ),
     h('div',{style:{background:'#fff',borderTop:'1px solid rgba(0,0,0,0.08)',display:'flex',position:'sticky',bottom:0,zIndex:10}},
       TABS.map(t=>h('button',{key:t.id,onClick:()=>setTab(t.id),style:{flex:1,padding:'12px 2px 16px',fontSize:'12px',background:'none',border:'none',borderTop:tab===t.id?'2px solid #111':'2px solid transparent',cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',gap:'3px',color:tab===t.id?'#111':'#999',fontWeight:tab===t.id?'700':'400'}},
