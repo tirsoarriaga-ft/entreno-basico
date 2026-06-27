@@ -52,7 +52,8 @@ function calcE1RM(kg,reps){if(!reps||reps<=0)return kg;return Math.round(kg*(1+r
 
 function getWkForNum(user,num){
   const startId=localStorage.getItem(`bas_${user}_startdate`)||new Date().toISOString().split('T')[0];
-  const startMon=new Date(startId+'T12:00:00');
+  let startMon=new Date(startId+'T12:00:00');
+  if(isNaN(startMon.getTime())){const t=new Date();t.setHours(12,0,0,0);startMon=t;}
   const day=startMon.getDay();
   const diffToMon=day===0?-6:1-day;
   startMon.setDate(startMon.getDate()+diffToMon);
@@ -410,7 +411,8 @@ function App(){
               return ex?ex.id:null;
             }).filter(v=>v!==null);
           });
-          const newCfg={num,assign,series:Math.min(4,Math.max(2,parseInt(fila.Series)||2)),bloque:String(fila.Bloque||'volumen').toLowerCase().trim(),bloqueInicio:parseInt(fila.BloqueInicio)||1,hiit:['A','B','C','D'].map(s=>{const nom=String(fila['HIIT'+s]||'').trim();if(!nom)return null;return{id:s,nom,detalle:String(fila['HIIT'+s+'Detalle']||'').trim(),ritmo:String(fila['HIIT'+s+'Ritmo']||'').trim()};}).filter(Boolean)};setCfg(newCfg);localStorage.setItem(CFG_KEY(user),JSON.stringify(newCfg));
+          const normBloque=s=>{const n=s.toLowerCase().trim().replace(/[áàä]/g,'a').replace(/[éèë]/g,'e').replace(/[íìï]/g,'i').replace(/[óòö]/g,'o').replace(/[úùü]/g,'u').replace(/ñ/g,'n');const MAP={'mantenimiento':'man','mant':'man','deportivo':'deporte','rehabilitacion':'rehab','rehab':'rehab','progresion base':'base','progresionbase':'base','base':'base','intensidad':'intensidad','volumen':'volumen','deporte':'deporte','man':'man'};return MAP[n]||n;};
+          const newCfg={num,assign,series:Math.min(4,Math.max(2,parseInt(fila.Series)||2)),bloque:normBloque(String(fila.Bloque||'volumen')),bloqueInicio:parseInt(fila.BloqueInicio)||1,hiit:['A','B','C','D'].map(s=>{const nom=String(fila['HIIT'+s]||'').trim();if(!nom)return null;return{id:s,nom,detalle:String(fila['HIIT'+s+'Detalle']||'').trim(),ritmo:String(fila['HIIT'+s+'Ritmo']||'').trim()};}).filter(Boolean)};setCfg(newCfg);localStorage.setItem(CFG_KEY(user),JSON.stringify(newCfg));
           const fechaInicio=String(fila.FechaInicio||'').trim();
           if(fechaInicio){localStorage.setItem(`bas_${user}_startdate`,fechaInicio);}
           else if(!localStorage.getItem(`bas_${user}_startdate`)){localStorage.setItem(`bas_${user}_startdate`,new Date().toISOString().split('T')[0]);}
