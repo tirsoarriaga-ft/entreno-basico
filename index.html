@@ -40,12 +40,12 @@ const TECNICAS=[
   {id:'ne',n:'Negativas',d:'Al llegar al fallo, bajás el peso muy lento (4-6 seg) con ayuda para subir. Solo la fase excéntrica.'},
 ];
 const BLOQUES={
-  volumen:   {label:'Volumen',     color:'#1D9E75',emoji:'📈',hint:'Triple progresión: más reps dentro del rango → más kg → más series cada 2 semanas.'},
-  intensidad:{label:'Intensidad',  color:'#378ADD',emoji:'🏋️',hint:'Doble progresión: más reps → más kg al alcanzar el techo. Última serie con técnica de intensidad.'},
-  man:       {label:'Mantenimiento',color:'#6B7280',emoji:'🔄',hint:'Doble progresión normal. Variables estables, sin cambios automáticos de series.'},
-  base:      {label:'Progresión Base',color:'#F59E0B',emoji:'🌱',hint:'Si el entrenamiento anterior se sintió cómodo y controlado, hoy es momento de subir un poco el peso.'},
-  deporte:   {label:'Deporte',     color:'#8B5CF6',emoji:'🏀',hint:'Velocidad máxima en cada rep. Terminá la serie cuando notes pérdida de velocidad.'},
-  rehab:     {label:'Rehabilitación',color:'#EF4444',emoji:'🏥',hint:'Registrá los kg y reps de cada ejercicio. La progresión la indicará tu coach.'},
+  volumen:   {label:'Volumen',        color:'#1D9E75',emoji:'📈',hint:'Vos intentá mejorar las reps entreno tras entreno con el peso indicado. Cuando llegues al techo del rango, los kg se ajustan solos para la siguiente sesión. Cada 2 semanas la app te agregará una serie efectiva extra.'},
+  intensidad:{label:'Intensidad',     color:'#378ADD',emoji:'🏋️',hint:'Vos intentá mejorar las reps entreno tras entreno con el peso indicado. Cuando llegues al techo del rango, los kg se ajustan solos para la siguiente sesión. En la última serie de cada ejercicio, aplicá una técnica de intensidad.'},
+  fuerza:    {label:'Fuerza',         color:'#DC2626',emoji:'💪',hint:'Vos intentá mejorar las reps entreno tras entreno con el peso indicado. Cada 2 semanas la app aumentará los kg con el fin de progresar en carga. Intentá no perder reps con el peso nuevo.'},
+  man:       {label:'Mantenimiento',  color:'#6B7280',emoji:'🔄',hint:'Vos intentá mejorar las reps entreno tras entreno con el peso indicado. Cuando llegues al techo del rango, los kg se ajustan solos para la siguiente sesión.'},
+  base:      {label:'Progresión Base',color:'#F59E0B',emoji:'🌱',hint:'Las series y reps son fijas. Los kg los elegís vos: el peso no debe generarte dolor, pérdida de técnica ni desconfianza. Solo cuando lo sentís fácil, agregás peso — pero no series ni reps.'},
+  deporte:   {label:'Deporte',        color:'#8B5CF6',emoji:'🏀',hint:'El protocolo series-reps-kg ya está pautado. El objetivo es respetar lo indicado por la app y ejecutar cada rep a máxima velocidad. Si perdés velocidad, frenás la serie. Si te quedan series, podés sacar peso.'},
 };
 
 function calcE1RM(kg,reps){if(!reps||reps<=0)return kg;return Math.round(kg*(1+reps/30)*10)/10;}
@@ -216,7 +216,7 @@ function Training({exes,setSaved,user,cfg,setCfg,sessionReps,setSessionReps,sess
   const weeksInBlock=Math.max(0,wkNum-bloqueInicio);
   const numSeries=bloque==='base'?4:bloque==='volumen'?Math.min(4,seriesBase+Math.floor(weeksInBlock/2)):seriesBase;
   const semanasParaSiguienteSerie=(bloque==='volumen'&&numSeries<4)?(2-(weeksInBlock%2)||2):null;
-  const hasProgression=bloque==='volumen'||bloque==='intensidad'||bloque==='man';
+  const hasProgression=bloque==='volumen'||bloque==='intensidad'||bloque==='man'||bloque==='fuerza';
   const SERIES_KEYS=['r1','r2','r3','r4'].slice(0,numSeries);
   const canIncreaseKg=ex=>{if(!hasProgression)return false;return true;};
   const nKg=ex=>{if(!canIncreaseKg(ex))return null;const curKg=getKg(ex);if(!curKg)return null;const r1=parseInt(sessionReps?.[activeSess]?.[ex.id]?.r1)||0;return r1>=ex.hi?rKg(curKg*1.05):null;};
@@ -411,7 +411,7 @@ function App(){
               return ex?ex.id:null;
             }).filter(v=>v!==null);
           });
-          const normBloque=s=>{const n=s.toLowerCase().trim().replace(/[áàä]/g,'a').replace(/[éèë]/g,'e').replace(/[íìï]/g,'i').replace(/[óòö]/g,'o').replace(/[úùü]/g,'u').replace(/ñ/g,'n');const MAP={'mantenimiento':'man','mant':'man','deportivo':'deporte','rehabilitacion':'rehab','rehab':'rehab','progresion base':'base','progresionbase':'base','base':'base','intensidad':'intensidad','volumen':'volumen','deporte':'deporte','man':'man'};return MAP[n]||n;};
+          const normBloque=s=>{const n=s.toLowerCase().trim().replace(/[áàä]/g,'a').replace(/[éèë]/g,'e').replace(/[íìï]/g,'i').replace(/[óòö]/g,'o').replace(/[úùü]/g,'u').replace(/ñ/g,'n');const MAP={'mantenimiento':'man','mant':'man','deportivo':'deporte','rehabilitacion':'base','rehab':'base','progresion base':'base','progresionbase':'base','base':'base','intensidad':'intensidad','volumen':'volumen','deporte':'deporte','man':'man','fuerza':'fuerza'};return MAP[n]||n;};
           const newCfg={num,assign,series:Math.min(4,Math.max(2,parseInt(fila.Series)||2)),bloque:normBloque(String(fila.Bloque||'volumen')),bloqueInicio:parseInt(fila.BloqueInicio)||1,hiit:['A','B','C','D'].map(s=>{const nom=String(fila['HIIT'+s]||'').trim();if(!nom)return null;return{id:s,nom,detalle:String(fila['HIIT'+s+'Detalle']||'').trim(),ritmo:String(fila['HIIT'+s+'Ritmo']||'').trim()};}).filter(Boolean)};setCfg(newCfg);localStorage.setItem(CFG_KEY(user),JSON.stringify(newCfg));
           const fechaInicio=String(fila.FechaInicio||'').trim();
           if(fechaInicio){localStorage.setItem(`bas_${user}_startdate`,fechaInicio);}
