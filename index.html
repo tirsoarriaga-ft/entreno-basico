@@ -623,6 +623,9 @@ function App(){
         h('button',{onClick:saveProgress,disabled:saving||weekLocked,style:{width:'100%',borderRadius:'8px',padding:'7px 10px',fontSize:'11px',fontWeight:'600',cursor:saving||weekLocked?'default':'pointer',border:'1.5px solid rgba(255,255,255,0.15)',background:saved==='progreso'?'rgba(55,138,221,0.15)':weekLocked?'rgba(255,255,255,0.04)':'rgba(255,255,255,0.08)',color:saved==='progreso'?B:weekLocked?'rgba(255,255,255,0.2)':'rgba(255,255,255,0.6)'}},
           saving?'...':(saved==='progreso'?'✓ Progreso guardado':weekLocked?'🔒 Solo lectura':'Guardar progreso')
         ),
+        !weekLocked&&saved!==true&&h('div',{style:{fontSize:'10px',color:'rgba(255,255,255,0.35)',lineHeight:'1.4',paddingTop:'4px',borderTop:'1px solid rgba(255,255,255,0.06)',marginTop:'2px'}},
+          '💾 Anotá tus datos y usá Guardar progreso para no perderlos'
+        ),
         h('div',{style:{display:'flex',gap:'4px',width:'100%',marginTop:'2px'}},
           h('button',{onClick:prevWeek,disabled:(wk.num||1)<=1,style:{flex:1,borderRadius:'8px',padding:'6px 4px',fontSize:'10px',fontWeight:'600',cursor:(wk.num||1)<=1?'default':'pointer',border:'1px solid rgba(255,255,255,0.12)',background:'rgba(255,255,255,0.06)',color:(wk.num||1)<=1?'rgba(255,255,255,0.2)':'rgba(255,255,255,0.6)'}},'← Anterior'),
           h('button',{onClick:()=>{if(split){localStorage.removeItem(`bas_${user}_split`);setSplit(null);}},style:{flex:1,borderRadius:'8px',padding:'6px 4px',fontSize:'10px',fontWeight:'600',cursor:'pointer',border:'1px solid rgba(255,255,255,0.12)',background:'rgba(255,255,255,0.06)',color:'rgba(255,255,255,0.6)'}},'Split ⚙️')
