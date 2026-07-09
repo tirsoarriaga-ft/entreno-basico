@@ -99,9 +99,12 @@ function LineChart({data,color,h:ht=120,labels}){
 function Onboarding({user,onDone}){
   const [sel,setSel]=useState(null);
   const SPLITS=[
-    {n:'3',label:'3 días',sub:'Full Body · 3 sesiones A/B/C'},
-    {n:'4',label:'4 días',sub:'Torso-Pierna · 4 sesiones A/B/C/D'},
-    {n:'5',label:'5 días',sub:'PPL / Glut · 3 sesiones rotativas'},
+    {n:'3H', label:'3 días ♂', sub:'Full Body Hombre · sesiones A/B/C',      ic:'🔄'},
+    {n:'3M', label:'3 días ♀', sub:'Full Body Mujer · sesiones A/B/C',       ic:'🔄'},
+    {n:'4H', label:'4 días ♂', sub:'Torso-Pierna Hombre · sesiones A/B/C/D', ic:'🏋️'},
+    {n:'4M', label:'4 días ♀', sub:'Torso-Pierna Mujer · sesiones A/B/C/D',  ic:'🏋️'},
+    {n:'5H', label:'5 días ♂', sub:'PPL Hombre · sesiones A/B/C rotativas',  ic:'💪'},
+    {n:'5M', label:'5 días ♀', sub:'Glut-Fem / Cuads / Torso · rotativas',   ic:'💪'},
   ];
   return h('div',{style:{maxWidth:'480px',margin:'0 auto',minHeight:'100vh',background:'#0A0A0A',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'40px 24px'}},
     h('div',{style:{textAlign:'center',marginBottom:'32px'}},
@@ -112,7 +115,7 @@ function Onboarding({user,onDone}){
     h('div',{style:{fontSize:'11px',fontWeight:'700',color:'rgba(255,255,255,0.4)',letterSpacing:'0.12em',textTransform:'uppercase',marginBottom:'12px'}},'¿Cuántos días por semana entrenás?'),
     h('div',{style:{display:'flex',flexDirection:'column',gap:'8px',width:'100%',maxWidth:'320px',marginBottom:'24px'}},
       SPLITS.map(s=>h('button',{key:s.n,onClick:()=>setSel(s.n),style:{padding:'14px 16px',borderRadius:'12px',border:`2px solid ${sel===s.n?AC:'rgba(255,255,255,0.1)'}`,background:sel===s.n?AC+'22':'rgba(255,255,255,0.04)',cursor:'pointer',textAlign:'left',transition:'all 0.15s'}},
-        h('div',{style:{fontSize:'15px',fontWeight:'800',color:sel===s.n?AC:'#fff'}},'🗓 '+s.label),
+        h('div',{style:{fontSize:'15px',fontWeight:'800',color:sel===s.n?AC:'#fff'}},s.ic+' '+s.label),
         h('div',{style:{fontSize:'11px',color:'rgba(255,255,255,0.45)',marginTop:'2px'}},s.sub)
       ))
     ),
@@ -146,10 +149,11 @@ function Training({user,split,rutinas,exes,wkNum,isViewingPast,sessionReps,setSe
   };
 
   // Sesiones disponibles según split
-  const sesiones=split==='4'?['A','B','C','D']:['A','B','C'];
-
+  const is5day=split==='5H'||split==='5M';
+  const is4day=split==='4H'||split==='4M';
+  const sesiones=is4day?['A','B','C','D']:['A','B','C'];
   // Sesión activa: para 5 días es automática, para 3/4 es manual
-  const todaySess=split==='5'?getTodaySession5(wkNum):null;
+  const todaySess=is5day?getTodaySession5(wkNum):null;
   const [activeSess,setActiveSess]=useState(()=>todaySess||'A');
 
   // Ejercicios de la sesión activa
@@ -258,8 +262,8 @@ function Training({user,split,rutinas,exes,wkNum,isViewingPast,sessionReps,setSe
 
     // Selector sesión
     h('div',{style:card},
-      h('div',{style:{...lbl,marginBottom:'8px'}},split==='5'?'Sesión de hoy (rotación automática)':'Sesión de hoy'),
-      split==='5'&&todaySess
+      h('div',{style:{...lbl,marginBottom:'8px'}},is5day?'Sesión de hoy (rotación automática)':'Sesión de hoy'),
+      is5day&&todaySess
         ?h('div',{style:{display:'flex',alignItems:'center',gap:'8px'}},
             h('div',{style:{fontSize:'28px',fontWeight:'900',color:AC}},todaySess),
             h('div',null,
@@ -267,7 +271,7 @@ function Training({user,split,rutinas,exes,wkNum,isViewingPast,sessionReps,setSe
               h('div',{style:{fontSize:'11px',color:'#888'}},'Patrón automático sem '+wkNum)
             )
           )
-        :split==='5'&&!todaySess
+        :is5day&&!todaySess
         ?h('div',{style:{fontSize:'13px',color:'#888',padding:'8px 0'}},'Hoy es fin de semana — descansá 💤')
         :h('div',{style:{display:'flex',gap:'6px'}},
             sesiones.map(s=>h('button',{key:s,onClick:()=>!isViewingPast&&setActiveSess(s),style:{flex:1,padding:'10px 4px',fontSize:'16px',fontWeight:'900',cursor:isViewingPast?'default':'pointer',border:`2px solid ${activeSess===s?AC:'rgba(0,0,0,0.1)'}`,borderRadius:'10px',color:activeSess===s?AC:'#999',background:activeSess===s?AC+'12':'#fff',transition:'all 0.15s'}},s))
@@ -489,26 +493,26 @@ function App(){
       })).filter(e=>e.n);
       setExes(parsed);
 
-      // Rutinas básicas: {Split, Sesion, Ejercicio, Low, Hi}
-      // Parsed into {3:{A:[...],B:[...]},4:{...},5:{...}}
-      const rt={3:{A:[],B:[],C:[]},4:{A:[],B:[],C:[],D:[]},5:{A:[],B:[],C:[]}};
-      const norm=s=>s.toLowerCase().trim().replace(/[áàä]/g,'a').replace(/[éèë]/g,'e').replace(/[íìï]/g,'i').replace(/[óòö]/g,'o').replace(/[úùü]/g,'u').replace(/ñ/g,'n');
+      // Rutinas básicas: {Split, Dias, Sesiones, SesionA, SesionB, SesionC, SesionD}
+      // Una fila por split → {3:{A:[...],B:[...],C:[]}, 4H:{A:[...],B:[...],C:[...],D:[]}, ...}
+      const rt={};
+      const parseExList=str=>{
+        if(!str)return[];
+        // Separar por coma, pero respetar + para biseries
+        return str.split(',').map(s=>s.trim()).filter(Boolean).map(item=>{
+          if(item.includes('+'))return item.split('+').map(n=>n.trim()).filter(Boolean);
+          return item;
+        });
+      };
       rutRows.forEach(r=>{
         const sp=String(r.Split||'').trim();
-        const sess=String(r.Sesion||'').trim().toUpperCase();
-        const exStr=String(r.Ejercicio||'').trim();
-        if(!sp||!sess||!exStr)return;
-        if(!rt[sp])rt[sp]={};
-        if(!rt[sp][sess])rt[sp][sess]=[];
-        // Parse biseries/gigantes con +
-        if(exStr.includes('+')){
-          const parts=exStr.split('+').map(n=>n.trim()).filter(Boolean);
-          rt[sp][sess].push(parts);
-        }else{
-          // Múltiples ejercicios separados por coma = ejercicios individuales
-          const items=exStr.split(',').map(n=>n.trim()).filter(Boolean);
-          items.forEach(n=>rt[sp][sess].push(n));
-        }
+        if(!sp)return;
+        rt[sp]={};
+        const numSess=parseInt(r.Sesiones)||3;
+        ['A','B','C','D'].slice(0,numSess).forEach(s=>{
+          const raw=String(r['Sesion'+s]||'').trim();
+          rt[sp][s]=parseExList(raw);
+        });
       });
       setRutinas(rt);
     }).catch(()=>{}).finally(()=>{setLoading(false);draftReady.current=true;});
@@ -609,7 +613,9 @@ function App(){
     // Header
     h('div',{style:{background:'#0A0A0A',padding:'14px 18px',position:'sticky',top:0,zIndex:10,display:'flex',justifyContent:'space-between',alignItems:'center'}},
       h('div',null,
-        h('div',{style:{fontSize:'10px',color:'rgba(255,255,255,0.35)',fontWeight:'700',letterSpacing:'0.12em',textTransform:'uppercase'}},'Fuerza T · '+split+' días'),
+        h('div',{style:{fontSize:'10px',color:'rgba(255,255,255,0.35)',fontWeight:'700',letterSpacing:'0.12em',textTransform:'uppercase'}},
+          'Fuerza T · '+({'3H':'3 días ♂','3M':'3 días ♀','4H':'4 días ♂','4M':'4 días ♀','5H':'5 días ♂','5M':'5 días ♀'}[split]||split)
+        ),
         h('div',{style:{display:'flex',alignItems:'center',gap:'8px'}},
           h('div',{style:{fontSize:'18px',fontWeight:'900',color:'#fff'}},user),
           h('button',{onClick:logout,style:{background:'none',border:'none',cursor:'pointer',fontSize:'10px',color:'rgba(255,255,255,0.25)',padding:0}},'cambiar')
