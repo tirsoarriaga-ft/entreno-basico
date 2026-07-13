@@ -244,9 +244,39 @@ function Training({user,split,rutinas,exes,wkNum,isViewingPast,sessionReps,setSe
         h('div',{style:{fontSize:'16px',fontWeight:'900',color:'#0A0A0A',marginBottom:'16px'}},'¿No podés hacer '+exEquiv.n+'?'),
         getEquivs(exEquiv).length===0
           ?h('div',{style:{fontSize:'13px',color:'#bbb',textAlign:'center',padding:'20px 0'}},'No hay ejercicios equivalentes')
-          :getEquivs(exEquiv).map((e,i,arr)=>h('div',{key:e.n,style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'12px 0',borderBottom:i<arr.length-1?'1px solid rgba(0,0,0,0.06)':'none'}},
-            h('div',null,h('div',{style:{fontSize:'14px',fontWeight:'700',color:'#0A0A0A'}},e.n),h('div',{style:{fontSize:'11px',color:'#888',marginTop:'2px'}},e.low+'–'+e.hi+' reps')),
-            e.url&&h('a',{href:e.url,target:'_blank',rel:'noreferrer',style:{fontSize:'11px',color:AC,fontWeight:'700',textDecoration:'none'}},'▶ Ver')
+          :getEquivs(exEquiv).map((e,i,arr)=>h('div',{key:e.n,style:{padding:'12px 0',borderBottom:i<arr.length-1?'1px solid rgba(0,0,0,0.06)':'none'}},
+            h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginBottom:'8px'}},
+              h('div',null,
+                h('div',{style:{fontSize:'14px',fontWeight:'700',color:'#0A0A0A'}},e.n),
+                h('div',{style:{fontSize:'11px',color:'#888',marginTop:'2px'}},e.low+'–'+e.hi+' reps')
+              ),
+              e.url&&h('a',{href:e.url,target:'_blank',rel:'noreferrer',style:{fontSize:'11px',color:AC,fontWeight:'700',textDecoration:'none'}},'▶ Ver')
+            ),
+            h('div',{style:{display:'flex',gap:'6px'}},
+              h('button',{onClick:()=>{
+                // Solo hoy: reemplazar en sessionReps pero no en cfg
+                const newSR={...sessionReps};
+                if(newSR[activeSess]&&newSR[activeSess][exEquiv.n]){
+                  newSR[activeSess][e.n]=newSR[activeSess][exEquiv.n];
+                  delete newSR[activeSess][exEquiv.n];
+                }
+                setSessionReps(newSR);
+                setExEquiv(null);
+              },style:{flex:1,padding:'7px',fontSize:'11px',fontWeight:'600',borderRadius:'8px',border:`1px solid ${AC}`,background:'#fff',color:AC,cursor:'pointer'}},'Solo hoy'),
+              h('button',{onClick:()=>{
+                // Reemplazar siempre: actualizar en cfg local
+                if(rutinas&&rutinas[split]&&rutinas[split][activeSess]){
+                  const newRut=JSON.parse(JSON.stringify(rutinas));
+                  newRut[split][activeSess]=newRut[split][activeSess].map(item=>{
+                    if(Array.isArray(item))return item.map(n=>n===exEquiv.n?e.n:n);
+                    return item===exEquiv.n?e.n:item;
+                  });
+                  setRutinas(newRut);
+                  localStorage.setItem(`bas_${user}_rutOverride_${split}`,JSON.stringify(newRut[split]));
+                }
+                setExEquiv(null);
+              },style:{flex:1,padding:'7px',fontSize:'11px',fontWeight:'700',borderRadius:'8px',border:'none',background:'#0A0A0A',color:'#fff',cursor:'pointer'}},'Reemplazar siempre')
+            )
           ))
       )
     ),
@@ -447,7 +477,8 @@ function App(){
   const realWkNum=user?getRealWkNum(user):1;
   const isViewingPast=wk.num<realWkNum;
   const wkSat=user?getWkSat(user,wk.num):new Date();
-  const wkFinished=new Date()>wkSat;
+  const now=new Date();
+  const wkFinished=now>wkSat||now.getDay()===0;
   const canSaveWeek=wk.num===realWkNum&&wkFinished;
   const weekLocked=isViewingPast;
 
@@ -519,7 +550,15 @@ function App(){
         });
       });
       setRutinas(rt);
-    }).catch(()=>{}).finally(()=>{setLoading(false);draftReady.current=true;});
+      // Aplicar overrides guardados por el usuario
+      const override=localStorage.getItem(`bas_${user}_rutOverride_${sp||split}`);
+      if(override){try{const o=JSON.parse(override);if(rt[sp||split])rt[sp||split]=o;}catch(e){}}
+      setRutinas({...rt});
+    }).catch(()=>{}).finally(()=>{
+        setLoading(false);
+        // Draft ya fue cargado en el useEffect inicial — activar con delay
+        setTimeout(()=>{draftReady.current=true;},200);
+      });
   },[user]);
 
   function loadH(u){
