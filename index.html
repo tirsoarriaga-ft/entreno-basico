@@ -475,6 +475,7 @@ function App(){
 
   // Calendar
   const realWkNum=user?getRealWkNum(user):1;
+  const maxWkNum=user?(parseInt(localStorage.getItem(`bas_${user}_maxWkNum`))||realWkNum):realWkNum;
   const isViewingPast=wk.num<realWkNum;
   const wkSat=user?getWkSat(user,wk.num):new Date();
   const now=new Date();
@@ -491,9 +492,13 @@ function App(){
     }
     const realNum=getRealWkNum(user);
     const storedNum=parseInt(localStorage.getItem(`bas_${user}_wknum`))||1;
+    localStorage.setItem(`bas_${user}_maxWkNum`,String(realNum));
     const correctedNum=Math.min(storedNum,realNum);
     if(correctedNum!==storedNum)localStorage.setItem(`bas_${user}_wknum`,String(correctedNum));
-    setWk(getWkForNum(user,correctedNum));
+    const isFirstTime=storedNum<=1&&realNum>1&&!localStorage.getItem(`bas_${user}_hadAdvanced`);
+    const wkNum=isFirstTime?realNum:correctedNum;
+    if(isFirstTime){localStorage.setItem(`bas_${user}_wknum`,String(realNum));localStorage.setItem(`bas_${user}_hadAdvanced`,'1');}
+    setWk(getWkForNum(user,wkNum));
 
     // Restaurar draft
     try{
