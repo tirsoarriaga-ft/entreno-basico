@@ -124,6 +124,74 @@ function Onboarding({user,onDone}){
 }
 
 // ── LOGIN ─────────────────────────────────────────────────────────────
+function AjustarBasica({onClose}){
+  var COACH_PIN='1234';
+  var [pin,setPin]=useState('');
+  var [auth,setAuth]=useState(false);
+  var [nombre,setNombre]=useState('');
+  var [wkNum,setWkNum]=useState('');
+  var [startDate,setStartDate]=useState('');
+  var [msg,setMsg]=useState('');
+  function pref(u){return 'bas_'+u+'_';}
+  function ls(k){try{return localStorage.getItem(k);}catch(e){return null;}}
+  function lsSet(k,v){try{localStorage.setItem(k,v);}catch(e){}}
+  function lsRm(k){try{localStorage.removeItem(k);}catch(e){}}
+  function cargar(){
+    var u=nombre.trim();if(!u)return;
+    setWkNum(ls(pref(u)+'wknum')||'1');
+    setStartDate(ls(pref(u)+'startdate')||'');
+    setMsg('');
+  }
+  function guardar(){
+    var u=nombre.trim();if(!u)return;
+    var num=parseInt(wkNum)||1;
+    lsSet(pref(u)+'wknum',String(num));
+    lsSet(pref(u)+'maxWkNum',String(num));
+    lsRm(pref(u)+'hadAdvanced');
+    if(startDate)lsSet(pref(u)+'startdate',startDate);
+    setMsg('Guardado. Cerrá y volvé a abrir la app.');
+  }
+  function limpiar(){
+    var u=nombre.trim();if(!u)return;
+    var num=parseInt(wkNum)||1;
+    for(var i=1;i<=20;i++){lsRm(pref(u)+'draft_sem_'+i);lsRm(pref(u)+'reporteSent_sem_'+i);}
+    lsSet(pref(u)+'wknum',String(num));
+    lsSet(pref(u)+'maxWkNum',String(num));
+    lsRm(pref(u)+'hadAdvanced');
+    if(startDate)lsSet(pref(u)+'startdate',startDate);
+    setMsg('Listo. Cerrá y volvé a abrir la app.');
+  }
+  var dark={background:'rgba(255,255,255,0.08)',border:'1.5px solid rgba(255,255,255,0.12)',color:'#fff',borderRadius:'10px',padding:'11px 12px',width:'100%',fontSize:'14px',fontFamily:'inherit',outline:'none'};
+  return h('div',{style:{maxWidth:'480px',margin:'0 auto',background:'#0A0A0A',minHeight:'100vh',padding:'24px'}},
+    h('div',{style:{display:'flex',alignItems:'center',gap:'12px',marginBottom:'24px'}},
+      h('button',{onClick:onClose,style:{background:'none',border:'none',fontSize:'22px',cursor:'pointer',color:'#fff'}},'←'),
+      h('div',{style:{fontSize:'18px',fontWeight:'800',color:'#fff'}},'Ajustar semana')
+    ),
+    !auth
+      ?h('div',null,
+          h('div',{style:{fontSize:'12px',color:'rgba(255,255,255,0.5)',marginBottom:'8px'}},'PIN del coach'),
+          h('input',{type:'password',value:pin,onChange:function(e){setPin(e.target.value);},style:Object.assign({},dark,{marginBottom:'12px'})}),
+          h('button',{onClick:function(){pin===COACH_PIN?setAuth(true):setMsg('PIN incorrecto');},style:{width:'100%',background:'linear-gradient(135deg,#E8541A,#C0392B)',color:'#fff',border:'none',borderRadius:'10px',padding:'14px',fontSize:'15px',fontWeight:'700',cursor:'pointer'}},'Ingresar'),
+          msg&&h('div',{style:{color:'#EF4444',marginTop:'8px',fontSize:'13px'}},msg)
+        )
+      :h('div',null,
+          h('div',{style:{fontSize:'12px',color:'rgba(255,255,255,0.5)',marginBottom:'8px'}},'Nombre (exactamente como entra a la app)'),
+          h('div',{style:{display:'flex',gap:'8px',marginBottom:'16px'}},
+            h('input',{value:nombre,onChange:function(e){setNombre(e.target.value);},style:Object.assign({},dark,{flex:1})}),
+            h('button',{onClick:cargar,style:{background:'#378ADD',color:'#fff',border:'none',borderRadius:'8px',padding:'10px 16px',cursor:'pointer',fontWeight:'700'}},'Cargar')
+          ),
+          wkNum&&h('div',null,
+            h('div',{style:{fontSize:'12px',color:'rgba(255,255,255,0.5)',marginBottom:'6px'}},'Semana actual'),
+            h('input',{type:'number',value:wkNum,onChange:function(e){setWkNum(e.target.value);},style:Object.assign({},dark,{marginBottom:'10px'})}),
+            h('div',{style:{fontSize:'12px',color:'rgba(255,255,255,0.5)',marginBottom:'6px'}},'Fecha de inicio (YYYY-MM-DD)'),
+            h('input',{type:'date',value:startDate,onChange:function(e){setStartDate(e.target.value);},style:Object.assign({},dark,{marginBottom:'12px'})}),
+            h('button',{onClick:guardar,style:{width:'100%',background:'linear-gradient(135deg,#E8541A,#C0392B)',color:'#fff',border:'none',borderRadius:'10px',padding:'12px',fontSize:'14px',fontWeight:'700',cursor:'pointer',marginBottom:'8px'}},'Guardar corrección'),
+            h('button',{onClick:limpiar,style:{width:'100%',background:'rgba(255,255,255,0.06)',color:'rgba(255,255,255,0.6)',border:'1px solid rgba(255,255,255,0.12)',borderRadius:'10px',padding:'12px',fontSize:'13px',fontWeight:'600',cursor:'pointer'}},'Limpiar drafts y reiniciar sem')
+          ),
+          msg&&h('div',{style:{marginTop:'12px',fontSize:'13px',color:'#1D9E75',fontWeight:'600',padding:'10px',background:'rgba(29,158,117,0.15)',borderRadius:'8px'}},msg)
+        )
+  );
+}
 function Login({onLogin}){
   const [name,setName]=useState('');
   return h('div',{style:{maxWidth:'480px',margin:'0 auto',minHeight:'100vh',background:'#0A0A0A',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'40px 24px'}},
@@ -697,6 +765,8 @@ function App(){
 
   const TABS=[{id:'d',l:'Inicio',ic:'🏠'},{id:'t',l:'Entreno',ic:'🏋️'}];
 
+  const showAjustar=new URLSearchParams(window.location.search).get('ajustar')==='true';
+  if(showAjustar)return h(AjustarBasica,{onClose:()=>window.location.href=window.location.pathname});
   if(!user)return h(Login,{onLogin:login});
   if(!split)return h(Onboarding,{user,onDone:sp=>{setSplit(sp);}});
 
