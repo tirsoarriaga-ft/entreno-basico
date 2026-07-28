@@ -560,13 +560,15 @@ function App(){
 
   // Calendar
   const realWkNum=user?getRealWkNum(user):1;
-  const maxWkNum=user?(parseInt(localStorage.getItem(`bas_${user}_maxWkNum`))||realWkNum):realWkNum;
+  const maxWkNum=Math.max(realWkNum,parseInt(localStorage.getItem('bas_'+user+'_maxWkNum')||'1'));
   const isViewingPast=wk.num<realWkNum;
   const wkSat=user?getWkSat(user,wk.num):new Date();
   const now=new Date();
   const wkFinished=now>wkSat||now.getDay()===0;
   const canSaveWeek=wk.num===realWkNum&&wkFinished;
   const weekLocked=isViewingPast;
+  // Nueva → disponible desde dom si guardó, hasta sem siguiente incluida
+  const canGoNext=saved===true&&wkFinished&&(wk.num||1)<maxWkNum;
 
   useEffect(()=>{
     if(!user)return;
@@ -797,7 +799,7 @@ function App(){
           h('button',{onClick:prevWeek,disabled:(wk.num||1)<=1,style:{flex:1,borderRadius:'8px',padding:'6px 4px',fontSize:'10px',fontWeight:'600',cursor:(wk.num||1)<=1?'default':'pointer',border:'1px solid rgba(255,255,255,0.12)',background:'rgba(255,255,255,0.06)',color:(wk.num||1)<=1?'rgba(255,255,255,0.2)':'rgba(255,255,255,0.6)'}},'← Anterior'),
           isViewingPast
             ?h('button',{onClick:goToCurrent,style:{flex:1,borderRadius:'8px',padding:'6px 4px',fontSize:'10px',fontWeight:'700',cursor:'pointer',border:'1px solid '+AC,background:AC+'22',color:AC}},'Sem actual →')
-            :h('button',{onClick:newWeek,disabled:!(saved===true&&wkFinished),style:{flex:1,borderRadius:'8px',padding:'6px 4px',fontSize:'10px',fontWeight:'600',cursor:saved===true&&wkFinished?'pointer':'default',border:'1px solid rgba(255,255,255,0.12)',background:'rgba(255,255,255,0.06)',color:saved===true&&wkFinished?'rgba(255,255,255,0.8)':'rgba(255,255,255,0.2)'}},'Nueva →'),
+            :h('button',{onClick:newWeek,disabled:!canGoNext,style:{flex:1,borderRadius:'8px',padding:'6px 4px',fontSize:'10px',fontWeight:'600',cursor:canGoNext?'pointer':'default',border:'1px solid rgba(255,255,255,0.12)',background:'rgba(255,255,255,0.06)',color:canGoNext?'rgba(255,255,255,0.8)':'rgba(255,255,255,0.2)'}},'Nueva →'),
           h('button',{onClick:()=>{if(split){localStorage.removeItem('bas_'+user+'_split');setSplit(null);}},style:{borderRadius:'8px',padding:'6px 8px',fontSize:'10px',fontWeight:'600',cursor:'pointer',border:'1px solid rgba(255,255,255,0.12)',background:'rgba(255,255,255,0.06)',color:'rgba(255,255,255,0.6)'}},'⚙️')
         )
       )
