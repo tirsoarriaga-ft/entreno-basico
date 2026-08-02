@@ -148,8 +148,9 @@ function AjustarBasica({onClose}){
     lsSet(pref(u)+'wknum',String(num));
     lsSet(pref(u)+'maxWkNum',String(num));
     lsRm(pref(u)+'hadAdvanced');
+    lsRm(pref(u)+'hadAdvanced2');
     if(startDate)lsSet(pref(u)+'startdate',startDate);
-    setMsg('Guardado. Cerrá y volvé a abrir la app.');
+    setMsg('Guardado. Cerra y volvé a abrir la app.');
   }
   function limpiar(){
     var u=nombre.trim();if(!u)return;
@@ -158,8 +159,9 @@ function AjustarBasica({onClose}){
     lsSet(pref(u)+'wknum',String(num));
     lsSet(pref(u)+'maxWkNum',String(num));
     lsRm(pref(u)+'hadAdvanced');
+    lsRm(pref(u)+'hadAdvanced2');
     if(startDate)lsSet(pref(u)+'startdate',startDate);
-    setMsg('Listo. Cerrá y volvé a abrir la app.');
+    setMsg('Listo. Cerra y volvé a abrir la app.');
   }
   var dark={background:'rgba(255,255,255,0.08)',border:'1.5px solid rgba(255,255,255,0.12)',color:'#fff',borderRadius:'10px',padding:'11px 12px',width:'100%',fontSize:'14px',fontFamily:'inherit',outline:'none'};
   return h('div',{style:{maxWidth:'480px',margin:'0 auto',background:'#0A0A0A',minHeight:'100vh',padding:'24px'}},
