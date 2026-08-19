@@ -105,6 +105,8 @@ function Onboarding({user,onDone}){
     {n:'4M', label:'4 días — Mujer',  sub:'Torso-Pierna · 4 sesiones A / B / C / D',       ic:'🏋️'},
     {n:'5H', label:'5 días — Hombre', sub:'PPL · 3 sesiones rotativas A / B / C',          ic:'💪'},
     {n:'5M', label:'5 días — Mujer',  sub:'Glut-Fem / Cuads / Torso · 3 sesiones rotativas',ic:'💪'},
+    {n:'3D', label:'3 días — Deporte', sub:'Rendimiento · progresión por técnica, no por kg', ic:'⚡'},
+    {n:'4D', label:'4 días — Deporte', sub:'Rendimiento · progresión por técnica, no por kg', ic:'⚡'},
   ];
   return h('div',{style:{maxWidth:'480px',margin:'0 auto',minHeight:'100vh',background:'#0A0A0A',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'40px 24px'}},
     h('div',{style:{textAlign:'center',marginBottom:'28px'}},
@@ -254,6 +256,11 @@ function Training({user,split,rutinas,setRutinas,exes,wkNum,isViewingPast,sessio
   const [exEquiv,setExEquiv]=useState(null);
 
   // Kg por nombre de ejercicio (cross-split, cross-session)
+  // Tipo de la rutina actual: 'carga' (musculación/mantenimiento) o 'tecnica' (deporte).
+  const splitTipo=(function(){
+    try{var t=(window._rtTipo||JSON.parse(localStorage.getItem('bas_rtTipo')||'{}'));return (t[split]||'carga');}catch(e){return 'carga';}
+  })();
+  const esDeporte=splitTipo==='tecnica';
   const getKg=exName=>sessionKg?.[exName];
   const setKgForEx=(exName,kg)=>{
     const newSK={...sessionKg,[exName]:kg};
@@ -294,12 +301,25 @@ function Training({user,split,rutinas,setRutinas,exes,wkNum,isViewingPast,sessio
     return null;
   };
 
-  // Sugerencia de kg siguiente
-  const nKg=(exName,ex)=>{
-    const curKg=getKg(exName);if(!curKg)return null;
-    if(wkNum<3)return null; // sem 1 y 2 sin progresión automática
+  // SUGERENCIA (no auto-progresión). Devuelve {tipo:'subir'|'bajar'|'tecnica', txt, kg?}
+  // - carga: si llega al techo -> sugerir subir kg; si no llega al piso -> sugerir bajar.
+  // - tecnica (deporte): mensaje según etiqueta de progresión del ejercicio.
+  const suger=(exName,ex)=>{
+    const curKg=getKg(exName);
     const r1=parseInt(sessionReps?.[activeSess]?.[exName]?.r1)||0;
-    return r1>=(ex.hi||12)?rKg(curKg*1.05):null;
+    if(esDeporte){
+      // Mensaje modulado por la etiqueta del ejercicio (no se sugiere kg concreto)
+      var p=ex.prog||'';
+      if(p==='fuerza')return {tipo:'tecnica',txt:'Fuerza: subí kg hasta que empiece a bajar la velocidad. Si se pone lento, mantené.'};
+      if(p==='potencia')return {tipo:'tecnica',txt:'Potencia: subí kg solo si mantenés la velocidad. Si se enlentece, no subas.'};
+      if(p==='complejidad')return {tipo:'tecnica',txt:'Complejidad: no subas kg. Progresá haciendo la variante más difícil o más control.'};
+      return null;
+    }
+    // carga (musculación / mantenimiento)
+    if(!curKg||curKg<=0)return null;
+    if(r1>0&&r1<(ex.low||8))return {tipo:'bajar',txt:'Quedaste por debajo del rango. La próxima probá con menos kg.'};
+    if(r1>=(ex.hi||12)&&wkNum>=2)return {tipo:'subir',kg:rKg(curKg*1.05),txt:'Llegaste al techo. La próxima subí a '+rKg(curKg*1.05)+' kg.'};
+    return null;
   };
 
   const doSaveKg=(exName,val)=>{
@@ -308,7 +328,9 @@ function Training({user,split,rutinas,setRutinas,exes,wkNum,isViewingPast,sessio
   };
 
   // Equivalentes: mismo grupo muscular
-  const getEquivs=ex=>exes.filter(e=>e.m===ex.m&&e.n!==ex.n);
+  const getEquivs=ex=>esDeporte
+    ? exes.filter(e=>e.prog&&e.prog===ex.prog&&e.n!==ex.n)
+    : exes.filter(e=>e.m===ex.m&&e.n!==ex.n);
 
   if(!rutinas||!rutinas[split]){
     return h('div',{style:{...card,textAlign:'center',padding:'32px'}},
@@ -364,7 +386,7 @@ function Training({user,split,rutinas,setRutinas,exes,wkNum,isViewingPast,sessio
           h('div',{style:{fontSize:'11px',color:'rgba(255,255,255,0.65)',lineHeight:'1.6',borderLeft:`3px solid ${AC}`,paddingLeft:'10px'}},LOW_LOAD_BANNER[wkNum])
         )
       :h('div',{style:{...card,background:'#0A0A0A',border:'none',marginBottom:'10px'}},
-          h('div',{style:{fontSize:'11px',color:'rgba(255,255,255,0.65)',lineHeight:'1.6',borderLeft:`3px solid ${AC}`,paddingLeft:'10px'}},'A partir de acá entrenás con pesos máximos. Cuando llegues al techo de reps, los kg suben solos.')
+          h('div',{style:{fontSize:'11px',color:'rgba(255,255,255,0.65)',lineHeight:'1.6',borderLeft:`3px solid ${AC}`,paddingLeft:'10px'}},'Cargá el peso que usaste en cada ejercicio. Según tus reps te vamos a sugerir cuándo subir, bajar o mantener — vos decidís el kg.')
         ),
 
     // Selector sesión
@@ -404,7 +426,7 @@ function Training({user,split,rutinas,setRutinas,exes,wkNum,isViewingPast,sessio
           const exName=ex.n;
           const pr=getPR(exName);
           const curKg=getKg(exName);
-          const nk=nKg(exName,ex);
+          const sg=suger(exName,ex);
           const to=tut===exName;
           const editing=editKg===exName;
           return h('div',{key:exName,style:isBiserie?{paddingBottom:'12px',marginBottom:'10px',borderBottom:'1px solid rgba(0,0,0,0.06)'}:{}},
@@ -439,7 +461,7 @@ function Training({user,split,rutinas,setRutinas,exes,wkNum,isViewingPast,sessio
             to&&ex.url&&h('div',{style:{background:'#EBF4FF',borderRadius:'8px',padding:'10px 12px',marginBottom:'10px'}},
               h('a',{href:ex.url,target:'_blank',rel:'noreferrer',style:{fontSize:'13px',color:B,fontWeight:'600',textDecoration:'none'}},'▶ Ver tutorial')
             ),
-            !isViewingPast&&h('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'8px',marginBottom:nk?'10px':'0'}},
+            !isViewingPast&&h('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'8px',marginBottom:sg?'10px':'0'}},
               SERIES_KEYS.map((k,i)=>h('div',{key:k},
                 h('div',{style:lbl},'Serie '+(i+1)),
                 h('input',{type:'text',inputMode:'numeric',placeholder:'Reps',value:getRep(activeSess,exName,k),onChange:e=>setRep(activeSess,exName,k,e.target.value),style:{...inp,textAlign:'center',fontSize:'22px',fontWeight:'700'}})
@@ -451,10 +473,16 @@ function Training({user,split,rutinas,setRutinas,exes,wkNum,isViewingPast,sessio
                 h('div',{style:{...inp,textAlign:'center',fontSize:'22px',fontWeight:'700',color:'#aaa',display:'flex',alignItems:'center',justifyContent:'center',minHeight:'48px'}},getRep(activeSess,exName,k)||'—')
               ))
             ),
-            nk&&!isViewingPast&&h('div',{style:{background:'#EAF7F2',border:'1px solid #A3DFC8',borderRadius:'8px',padding:'10px 12px',display:'flex',justifyContent:'space-between',alignItems:'center'}},
-              h('span',{style:{fontSize:'12px',color:G,fontWeight:'600'}},'Próxima sesión'),
-              h('span',{style:{fontWeight:'800',color:G,fontSize:'15px'}},'↑ '+nk+' kg')
-            )
+            sg&&!isViewingPast&&(function(){
+              var bg=sg.tipo==='subir'?'#EAF7F2':sg.tipo==='bajar'?'#FEF3F2':'#EFF6FF';
+              var bd=sg.tipo==='subir'?'#A3DFC8':sg.tipo==='bajar'?'#FECDCA':'#BFDBFE';
+              var col=sg.tipo==='subir'?G:sg.tipo==='bajar'?'#B42318':B;
+              var ico=sg.tipo==='subir'?'↑':sg.tipo==='bajar'?'↓':'◎';
+              return h('div',{style:{background:bg,border:'1px solid '+bd,borderRadius:'8px',padding:'10px 12px',display:'flex',gap:'8px',alignItems:'flex-start'}},
+                h('span',{style:{fontSize:'15px',fontWeight:'800',color:col,flexShrink:0}},ico),
+                h('span',{style:{fontSize:'12px',color:col,fontWeight:'600',lineHeight:'1.4'}},sg.txt)
+              );
+            })()
           );
         };
         if(isBiserie)return h('div',{key:'g'+gi,style:card},
@@ -618,7 +646,8 @@ function App(){
         m:String(r.Musculo||r.Músculo||r.MÚSCULO||'').trim(),
         low:parseInt(r.RepMin||r['Rep Min'])||8,
         hi:parseInt(r.RepMax||r['Rep Max'])||12,
-        url:String(r.Tutorial||r.TUTORIAL||'').trim()
+        url:String(r.Tutorial||r.TUTORIAL||'').trim(),
+        prog:String(r.Progresion||r.PROGRESION||r.progresion||'').trim().toLowerCase() // fuerza/potencia/complejidad (deporte)
       })).filter(e=>e.n);
       setExes(parsed);
 
@@ -633,16 +662,20 @@ function App(){
           return item;
         });
       };
+      const rtTipo={};
       rutRows.forEach(r=>{
         const sp=String(r.Split||'').trim();
         if(!sp)return;
         rt[sp]={};
+        rtTipo[sp]=String(r.Tipo||r.TIPO||r.tipo||'carga').trim().toLowerCase(); // carga | tecnica
         const numSess=parseInt(r.Sesiones)||3;
         ['A','B','C','D'].slice(0,numSess).forEach(s=>{
           const raw=String(r['Sesion'+s]||'').trim();
           rt[sp][s]=parseExList(raw);
         });
       });
+      try{localStorage.setItem('bas_rtTipo',JSON.stringify(rtTipo));}catch(e){}
+      window._rtTipo=rtTipo;
       setRutinas(rt);
       // Aplicar overrides guardados por el usuario
       const override=localStorage.getItem(`bas_${user}_rutOverride_${sp||split}`);
@@ -686,19 +719,8 @@ function App(){
     try{
       const curSR=sessionRepsRef.current;
       const skUsed=JSON.parse(JSON.stringify(sessionKg));
+      // Sin auto-progresión: el kg lo decide la persona (guiada por las sugerencias).
       const newSK={...sessionKg};
-      // Progresión: solo desde sem 3, solo al techo
-      if(wk.num>=3&&rutinas&&split){
-        Object.entries(curSR).forEach(([sess,sessData])=>{
-          Object.entries(sessData).forEach(([exName,reps])=>{
-            const sessExList=(rutinas[split]?.[sess]||[]).flat();
-            const exDef=exes.find(e=>e.n===exName)||{hi:12};
-            const curKg=sessionKg[exName];if(!curKg||curKg<=0)return;
-            const r1=parseInt(reps.r1)||0;
-            if(r1>=exDef.hi)newSK[exName]=rKg(curKg*1.05);
-          });
-        });
-      }
       setSessionKg(newSK);
       localStorage.setItem(`bas_${user}_sessKg`,JSON.stringify(newSK));
       const d={wi:wk.id,wl:wk.label,sr:curSR,skUsed,sk:newSK,split};
