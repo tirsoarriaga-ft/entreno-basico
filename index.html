@@ -236,6 +236,11 @@ function Training({user,split,rutinas,setRutinas,exes,wkNum,isViewingPast,sessio
   const [activeSess,setActiveSess]=useState(()=>todaySess||'A');
 
   // Ejercicios de la sesión activa
+  const _norm=(x)=>String(x||'').trim().toLowerCase().replace(/[áàä]/g,'a').replace(/[éèë]/g,'e').replace(/[íìï]/g,'i').replace(/[óòö]/g,'o').replace(/[úùü]/g,'u').replace(/ñ/g,'n').replace(/\s+/g,' ');
+  const _findEx=(nombre)=>{
+    // 1) match exacto; 2) match normalizado (tolera acentos/espacios/mayúsculas)
+    return exes.find(e=>e.n===nombre) || exes.find(e=>_norm(e.n)===_norm(nombre)) || {n:nombre,low:8,hi:12,url:'',prog:''};
+  };
   const sessExes=useMemo(()=>{
     if(!rutinas||!rutinas[split])return[];
     const raw=rutinas[split][activeSess]||[];
@@ -243,10 +248,10 @@ function Training({user,split,rutinas,setRutinas,exes,wkNum,isViewingPast,sessio
     return raw.map(item=>{
       if(Array.isArray(item))return item.map(n=>{
         const mapped=overrides[n]||n;
-        return exes.find(e=>e.n===mapped)||{n:mapped,low:8,hi:12,url:''};
+        return _findEx(mapped);
       }).filter(Boolean);
       const mapped=overrides[item]||item;
-      return[exes.find(e=>e.n===mapped)||{n:mapped,low:8,hi:12,url:''}];
+      return[_findEx(mapped)];
     }).filter(g=>g.length>0);
   },[rutinas,split,activeSess,exes,sessOverride]);
 
@@ -274,11 +279,15 @@ function Training({user,split,rutinas,setRutinas,exes,wkNum,isViewingPast,sessio
   const getRep=(sess,exName,k)=>sessionReps?.[sess]?.[exName]?.[k]||'';
   // Reps "confirmadas" (al salir del campo). La sugerencia se calcula con estas, no con el tipeo en vivo.
   const [repsConf,setRepsConf]=useState({});
-  // Al montar o cambiar de sesión, tomar como "confirmadas" las reps YA guardadas (no el tipeo en vivo).
+  // Confirmar reps con DEBOUNCE: 700ms después de la última tecla (equivale a "cerrar teclado"),
+  // sin depender del onBlur (poco confiable en móvil). La sugerencia no parpadea con cada tecla,
+  // pero aparece sola al terminar de escribir — sin necesidad de tocar Guardar.
   useEffect(function(){
-    setRepsConf(JSON.parse(JSON.stringify(sessionReps||{})));
-  // eslint-disable-next-line
-  },[activeSess,wkNum]);
+    var t=setTimeout(function(){
+      setRepsConf(JSON.parse(JSON.stringify(sessionReps||{})));
+    },700);
+    return function(){clearTimeout(t);};
+  },[sessionReps,activeSess,wkNum]);
   const setRep=(sess,exName,k,v)=>{
     setSessionReps(prev=>{
       const next={...prev};
@@ -312,22 +321,21 @@ function Training({user,split,rutinas,setRutinas,exes,wkNum,isViewingPast,sessio
   // - carga: si llega al techo -> sugerir subir kg; si no llega al piso -> sugerir bajar.
   // - tecnica (deporte): mensaje según etiqueta de progresión del ejercicio.
   const suger=(exName,ex)=>{
-    const curKg=getKg(exName);
-    // Usar la rep CONFIRMADA (al cerrar teclado). Si aún no se confirmó, no sugerir.
-    const confR1=repsConf?.[activeSess]?.[exName]?.r1;
-    if(confR1===undefined||confR1==='')return null;
-    const r1=parseInt(confR1)||0;
+    // DEPORTE: la guía es fija por ejercicio (no depende de reps). Se muestra siempre.
     if(esDeporte){
-      // Mensaje modulado por la etiqueta del ejercicio (no se sugiere kg concreto)
       var p=ex.prog||'';
       if(p==='fuerza')return {tipo:'tecnica',txt:'Fuerza: subí kg hasta que empiece a bajar la velocidad. Si se pone lento, mantené.'};
       if(p==='potencia')return {tipo:'tecnica',txt:'Potencia: subí kg solo si mantenés la velocidad. Si se enlentece, no subas.'};
       if(p==='complejidad')return {tipo:'tecnica',txt:'Complejidad: no subas kg. Progresá haciendo la variante más difícil o más control.'};
       return null;
     }
-    // carga (musculación / mantenimiento)
+    // CARGA: usar reps confirmadas (al cerrar teclado). Toma la primera serie con valor.
+    const curKg=getKg(exName);
     if(!curKg||curKg<=0)return null;
-    if(r1>0&&r1<(ex.low||8))return {tipo:'bajar',txt:'Quedaste por debajo del rango. La próxima probá con menos kg.'};
+    var confCell=repsConf?.[activeSess]?.[exName]||{};
+    var r1=parseInt(confCell.r1)||parseInt(confCell.r2)||parseInt(confCell.r3)||parseInt(confCell.r4)||0;
+    if(r1<=0)return null;
+    if(r1<(ex.low||8))return {tipo:'bajar',txt:'Quedaste por debajo del rango. La próxima probá con menos kg.'};
     if(r1>=(ex.hi||12)&&wkNum>=2)return {tipo:'subir',kg:rKg(curKg*1.05),txt:'Llegaste al techo. La próxima subí a '+rKg(curKg*1.05)+' kg.'};
     return null;
   };
@@ -473,7 +481,7 @@ function Training({user,split,rutinas,setRutinas,exes,wkNum,isViewingPast,sessio
             !isViewingPast&&h('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'8px',marginBottom:sg?'10px':'0'}},
               SERIES_KEYS.map((k,i)=>h('div',{key:k},
                 h('div',{style:lbl},'Serie '+(i+1)),
-                h('input',{type:'text',inputMode:'numeric',placeholder:'Reps',value:getRep(activeSess,exName,k),onChange:e=>setRep(activeSess,exName,k,e.target.value),onBlur:e=>{var val=e.target.value;setRepsConf(function(prev){var nx=Object.assign({},prev);if(!nx[activeSess])nx[activeSess]={};if(!nx[activeSess][exName])nx[activeSess][exName]={};nx[activeSess][exName]=Object.assign({},nx[activeSess][exName],{[k]:val});return nx;});},style:{...inp,textAlign:'center',fontSize:'22px',fontWeight:'700'}})
+                h('input',{type:'text',inputMode:'numeric',placeholder:'Reps',value:getRep(activeSess,exName,k),onChange:e=>setRep(activeSess,exName,k,e.target.value),style:{...inp,textAlign:'center',fontSize:'22px',fontWeight:'700'}})
               ))
             ),
             isViewingPast&&h('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'8px',marginBottom:'0'}},
