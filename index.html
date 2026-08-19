@@ -272,6 +272,13 @@ function Training({user,split,rutinas,setRutinas,exes,wkNum,isViewingPast,sessio
 
   // Reps por sesión → ejercicio (por nombre)
   const getRep=(sess,exName,k)=>sessionReps?.[sess]?.[exName]?.[k]||'';
+  // Reps "confirmadas" (al salir del campo). La sugerencia se calcula con estas, no con el tipeo en vivo.
+  const [repsConf,setRepsConf]=useState({});
+  // Al montar o cambiar de sesión, tomar como "confirmadas" las reps YA guardadas (no el tipeo en vivo).
+  useEffect(function(){
+    setRepsConf(JSON.parse(JSON.stringify(sessionReps||{})));
+  // eslint-disable-next-line
+  },[activeSess,wkNum]);
   const setRep=(sess,exName,k,v)=>{
     setSessionReps(prev=>{
       const next={...prev};
@@ -306,7 +313,10 @@ function Training({user,split,rutinas,setRutinas,exes,wkNum,isViewingPast,sessio
   // - tecnica (deporte): mensaje según etiqueta de progresión del ejercicio.
   const suger=(exName,ex)=>{
     const curKg=getKg(exName);
-    const r1=parseInt(sessionReps?.[activeSess]?.[exName]?.r1)||0;
+    // Usar la rep CONFIRMADA (al cerrar teclado). Si aún no se confirmó, no sugerir.
+    const confR1=repsConf?.[activeSess]?.[exName]?.r1;
+    if(confR1===undefined||confR1==='')return null;
+    const r1=parseInt(confR1)||0;
     if(esDeporte){
       // Mensaje modulado por la etiqueta del ejercicio (no se sugiere kg concreto)
       var p=ex.prog||'';
@@ -328,9 +338,8 @@ function Training({user,split,rutinas,setRutinas,exes,wkNum,isViewingPast,sessio
   };
 
   // Equivalentes: mismo grupo muscular
-  const getEquivs=ex=>esDeporte
-    ? exes.filter(e=>e.prog&&e.prog===ex.prog&&e.n!==ex.n)
-    : exes.filter(e=>e.m===ex.m&&e.n!==ex.n);
+  // Equivalentes SIEMPRE por Músculo. En deporte, Músculo = patrón (empuje/tracción/cadera...).
+  const getEquivs=ex=>exes.filter(e=>e.m===ex.m&&e.n!==ex.n);
 
   if(!rutinas||!rutinas[split]){
     return h('div',{style:{...card,textAlign:'center',padding:'32px'}},
@@ -464,7 +473,7 @@ function Training({user,split,rutinas,setRutinas,exes,wkNum,isViewingPast,sessio
             !isViewingPast&&h('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'8px',marginBottom:sg?'10px':'0'}},
               SERIES_KEYS.map((k,i)=>h('div',{key:k},
                 h('div',{style:lbl},'Serie '+(i+1)),
-                h('input',{type:'text',inputMode:'numeric',placeholder:'Reps',value:getRep(activeSess,exName,k),onChange:e=>setRep(activeSess,exName,k,e.target.value),style:{...inp,textAlign:'center',fontSize:'22px',fontWeight:'700'}})
+                h('input',{type:'text',inputMode:'numeric',placeholder:'Reps',value:getRep(activeSess,exName,k),onChange:e=>setRep(activeSess,exName,k,e.target.value),onBlur:e=>{var val=e.target.value;setRepsConf(function(prev){var nx=Object.assign({},prev);if(!nx[activeSess])nx[activeSess]={};if(!nx[activeSess][exName])nx[activeSess][exName]={};nx[activeSess][exName]=Object.assign({},nx[activeSess][exName],{[k]:val});return nx;});},style:{...inp,textAlign:'center',fontSize:'22px',fontWeight:'700'}})
               ))
             ),
             isViewingPast&&h('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'8px',marginBottom:'0'}},
