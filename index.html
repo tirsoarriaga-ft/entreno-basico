@@ -324,9 +324,9 @@ function Training({user,split,rutinas,setRutinas,exes,wkNum,isViewingPast,sessio
     // DEPORTE: la guía es fija por ejercicio (no depende de reps). Se muestra siempre.
     if(esDeporte){
       var p=ex.prog||'';
-      if(p==='fuerza')return {tipo:'tecnica',txt:'Fuerza: subí kg hasta que empiece a bajar la velocidad. Si se pone lento, mantené.'};
-      if(p==='potencia')return {tipo:'tecnica',txt:'Potencia: subí kg solo si mantenés la velocidad. Si se enlentece, no subas.'};
-      if(p==='complejidad')return {tipo:'tecnica',txt:'Complejidad: no subas kg. Progresá haciendo la variante más difícil o más control.'};
+      if(p==='fuerza')return {tipo:'tecnica',txt:'Progresión entre entrenos: cuando este peso te salga sólido, la próxima vez subilo. Si lo movés lento, mantené hasta dominarlo.'};
+      if(p==='potencia')return {tipo:'tecnica',txt:'Progresión entre entrenos: subí el peso la próxima vez solo si mantenés la velocidad. Si se enlentece, quedate en este peso.'};
+      if(p==='complejidad')return {tipo:'tecnica',txt:'Progresión entre entrenos: no subas peso. La próxima vez progresá con una variante más difícil o más control.'};
       return null;
     }
     // CARGA: usar reps confirmadas (al cerrar teclado). Toma la primera serie con valor.
@@ -335,8 +335,8 @@ function Training({user,split,rutinas,setRutinas,exes,wkNum,isViewingPast,sessio
     var confCell=repsConf?.[activeSess]?.[exName]||{};
     var r1=parseInt(confCell.r1)||parseInt(confCell.r2)||parseInt(confCell.r3)||parseInt(confCell.r4)||0;
     if(r1<=0)return null;
-    if(r1<(ex.low||8))return {tipo:'bajar',txt:'Quedaste por debajo del rango. La próxima probá con menos kg.'};
-    if(r1>=(ex.hi||12)&&wkNum>=2)return {tipo:'subir',kg:rKg(curKg*1.05),txt:'Llegaste al techo. La próxima subí a '+rKg(curKg*1.05)+' kg.'};
+    if(r1<=(ex.low||8))return {tipo:'bajar',txt:'Quedaste en o por debajo del piso del rango. Bajá el peso para las próximas series de HOY.'};
+    if(r1>=(ex.hi||12))return {tipo:'subir',kg:rKg(curKg*1.05),txt:'Llegaste al techo con buena técnica. La PRÓXIMA sesión subí a '+rKg(curKg*1.05)+' kg.'};
     return null;
   };
 
