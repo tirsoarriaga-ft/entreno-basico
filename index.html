@@ -256,6 +256,9 @@ function Training({user,split,rutinas,setRutinas,exes,wkNum,isViewingPast,sessio
   },[rutinas,split,activeSess,exes,sessOverride]);
 
   const [tut,setTut]=useState(null);
+  const [calOpen,setCalOpen]=useState(false);
+  // Ejercicios de calentamiento: los que en el sheet tienen Musculo='calentamiento' y tienen video.
+  const calExes=useMemo(()=>exes.filter(e=>String(e.m||'').toLowerCase()==='calentamiento'&&e.url),[exes]);
   const [editKg,setEditKg]=useState(null);
   const [kgVal,setKgVal]=useState('');
   const [exEquiv,setExEquiv]=useState(null);
@@ -432,6 +435,24 @@ function Training({user,split,rutinas,setRutinas,exes,wkNum,isViewingPast,sessio
         :h('div',{style:{display:'flex',gap:'6px'}},
             sesiones.map(s=>h('button',{key:s,onClick:()=>!isViewingPast&&setActiveSess(s),style:{flex:1,padding:'10px 4px',fontSize:'16px',fontWeight:'900',cursor:isViewingPast?'default':'pointer',border:`2px solid ${activeSess===s?AC:'rgba(0,0,0,0.1)'}`,borderRadius:'10px',color:activeSess===s?AC:'#999',background:activeSess===s?AC+'12':'#fff',transition:'all 0.15s'}},s))
           )
+    ),
+
+    // Calentamiento (ejercicios con Musculo='calentamiento' + video)
+    calExes.length>0&&h('div',{style:{...card,marginBottom:'10px'}},
+      h('div',{onClick:()=>setCalOpen(o=>!o),style:{display:'flex',justifyContent:'space-between',alignItems:'center',cursor:'pointer'}},
+        h('div',{style:{display:'flex',alignItems:'center',gap:'8px'}},
+          h('span',{style:{fontSize:'16px'}},'🔥'),
+          h('div',{style:{fontSize:'13px',fontWeight:'700',color:'#111'}},'Calentamiento'),
+          h('span',{style:{fontSize:'11px',color:'#999'}},calExes.length+' opciones')
+        ),
+        h('span',{style:{fontSize:'12px',color:'#999',fontWeight:'700'}},calOpen?'▲':'▼')
+      ),
+      calOpen&&h('div',{style:{marginTop:'12px',display:'flex',gap:'8px',overflowX:'auto',paddingBottom:'4px'}},
+        calExes.map(ex=>h('a',{key:ex.n,href:ex.url,target:'_blank',rel:'noreferrer',style:{flexShrink:0,background:'#F5F5F5',border:'1px solid rgba(0,0,0,0.08)',borderRadius:'10px',padding:'10px 14px',textDecoration:'none',display:'flex',flexDirection:'column',gap:'4px',minWidth:'130px'}},
+          h('div',{style:{fontSize:'12px',fontWeight:'700',color:'#111'}},ex.n),
+          h('div',{style:{fontSize:'11px',color:B,fontWeight:'600'}},'▶ Ver video')
+        ))
+      )
     ),
 
     // Ejercicios
