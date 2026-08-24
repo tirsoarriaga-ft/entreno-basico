@@ -221,16 +221,16 @@ function Training({user,split,rutinas,setRutinas,exes,wkNum,isViewingPast,sessio
   };
   const is5day=split==='5H'||split==='5M';
   const is4day=split==='4H'||split==='4M';
-  const sesiones=is4day?['A','B','C','D']:['A','B','C'];
+  const sesiones=is5day?['A','B','C','D','E']:is4day?['A','B','C','D']:['A','B','C'];
   const [sessOverride,setSessOverride]=useState({});
   // Sesión activa
   // Para 5 días: arranca en A la primera vez, luego avanza desde la última sesión hecha
   const getNext5Sess=()=>{
     const last=localStorage.getItem(`bas_${user}_lastSess5_${split}`);
     if(!last)return 'A';
-    const order=['A','B','C'];
+    const order=['A','B','C','D','E'];
     const idx=order.indexOf(last);
-    return order[(idx+1)%3];
+    return order[(idx+1)%5];
   };
   const todaySess=is5day?getNext5Sess():null;
   const [activeSess,setActiveSess]=useState(()=>todaySess||'A');
@@ -417,29 +417,24 @@ function Training({user,split,rutinas,setRutinas,exes,wkNum,isViewingPast,sessio
     // Selector sesión
     h('div',{style:card},
       h('div',{style:{...lbl,marginBottom:'8px'}},'Sesión de hoy'),
-      is5day
-        ?h('div',null,
-            h('div',{style:{display:'flex',gap:'6px',marginBottom:'6px'}},
-              ['A','B','C'].map(s=>{
-                const isCurrent=s===activeSess;
-                return h('button',{key:s,onClick:()=>setActiveSess(s),
-                  style:{flex:1,padding:'10px 4px',fontSize:'16px',fontWeight:'900',
-                    cursor:'pointer',border:`2px solid ${isCurrent?AC:'rgba(255,255,255,0.1)'}`,
-                    borderRadius:'10px',color:isCurrent?AC:'rgba(255,255,255,0.3)',
-                    background:isCurrent?AC+'12':'transparent',transition:'all 0.15s'}},
-                  s,h('span',{style:{fontSize:'9px',display:'block',marginTop:'2px',
-                    color:isCurrent?AC:'rgba(255,255,255,0.25)'}},
-                    isCurrent?'hoy':'lectura')
-                );
-              })
-            ),
-            activeSess!==todaySess&&h('div',{style:{fontSize:'10px',color:'rgba(255,255,255,0.35)',marginTop:'2px'}},
-              'Consultando sesión '+activeSess+' (solo lectura) — tu sesión de hoy es '+todaySess
-            )
-          )
-        :h('div',{style:{display:'flex',gap:'6px'}},
-            sesiones.map(s=>h('button',{key:s,onClick:()=>!isViewingPast&&setActiveSess(s),style:{flex:1,padding:'10px 4px',fontSize:'16px',fontWeight:'900',cursor:isViewingPast?'default':'pointer',border:`2px solid ${activeSess===s?AC:'rgba(0,0,0,0.1)'}`,borderRadius:'10px',color:activeSess===s?AC:'#999',background:activeSess===s?AC+'12':'#fff',transition:'all 0.15s'}},s))
-          )
+      h('div',null,
+        h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap'}},
+          sesiones.map(s=>{
+            const isCurrent=activeSess===s;
+            const esHoy=is5day&&s===todaySess;
+            return h('button',{key:s,onClick:()=>!isViewingPast&&setActiveSess(s),
+              style:{flex:'1 1 18%',minWidth:'52px',padding:'10px 4px',fontSize:'16px',fontWeight:'900',
+                cursor:isViewingPast?'default':'pointer',border:`2px solid ${isCurrent?AC:'rgba(0,0,0,0.12)'}`,
+                borderRadius:'10px',color:isCurrent?AC:'#888',background:isCurrent?AC+'12':'#fff',transition:'all 0.15s'}},
+              s,
+              is5day&&h('span',{style:{fontSize:'9px',display:'block',marginTop:'2px',color:isCurrent?AC:'#aaa'}},esHoy?'hoy':(isCurrent?'viendo':'lectura'))
+            );
+          })
+        ),
+        is5day&&activeSess!==todaySess&&h('div',{style:{fontSize:'10px',color:'#999',marginTop:'6px'}},
+          'Estás viendo la sesión '+activeSess+' — tu sesión de hoy es '+todaySess
+        )
+      )
     ),
 
     // Calentamiento (ejercicios con Musculo='calentamiento' + video)
@@ -731,7 +726,7 @@ function App(){
         rt[sp]={};
         rtTipo[sp]=String(r.Tipo||r.TIPO||r.tipo||'carga').trim().toLowerCase(); // carga | tecnica
         const numSess=parseInt(r.Sesiones)||3;
-        ['A','B','C','D'].slice(0,numSess).forEach(s=>{
+        ['A','B','C','D','E'].slice(0,numSess).forEach(s=>{
           const raw=String(r['Sesion'+s]||'').trim();
           rt[sp][s]=parseExList(raw);
         });
