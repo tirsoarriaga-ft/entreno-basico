@@ -282,6 +282,7 @@ function Training({user,split,rutinas,setRutinas,exes,wkNum,isViewingPast,sessio
   const getRep=(sess,exName,k)=>sessionReps?.[sess]?.[exName]?.[k]||'';
   // Reps "confirmadas" (al salir del campo). La sugerencia se calcula con estas, no con el tipeo en vivo.
   const [repsConf,setRepsConf]=useState({});
+  const [protoConf,setProtoConf]=useState({}); // No-Deporte: {exName:'si'|'no'} cumplió el protocolo (no va al sheet)
   // Confirmar reps con DEBOUNCE: 700ms después de la última tecla (equivale a "cerrar teclado"),
   // sin depender del onBlur (poco confiable en móvil). La sugerencia no parpadea con cada tecla,
   // pero aparece sola al terminar de escribir — sin necesidad de tocar Guardar.
@@ -332,14 +333,18 @@ function Training({user,split,rutinas,setRutinas,exes,wkNum,isViewingPast,sessio
       if(p==='complejidad')return {tipo:'tecnica',txt:'Progresión entre entrenos: no subas peso. La próxima vez progresá con una variante más difícil o más control.'};
       return null;
     }
-    // CARGA: usar reps confirmadas (al cerrar teclado). Toma la primera serie con valor.
+    // CARGA (No-Deporte, tipo Base): la sugerencia depende de si cumplió el protocolo (3 x rep fija).
     const curKg=getKg(exName);
     if(!curKg||curKg<=0)return null;
-    var confCell=repsConf?.[activeSess]?.[exName]||{};
-    var r1=parseInt(confCell.r1)||parseInt(confCell.r2)||parseInt(confCell.r3)||parseInt(confCell.r4)||0;
-    if(r1<=0)return null;
-    if(r1<=(ex.low||8))return {tipo:'bajar',txt:'Quedaste en o por debajo del piso del rango. Bajá el peso para las próximas series de HOY.'};
-    if(r1>=(ex.hi||12))return {tipo:'subir',kg:rKg(curKg*1.05),txt:'Llegaste al techo con buena técnica. La PRÓXIMA sesión subí a '+rKg(curKg*1.05)+' kg.'};
+    const repMedio=Math.round(((ex.low||8)+(ex.hi||12))/2);
+    const estado=protoConf?.[activeSess]?.[exName];
+    if(estado==='si'){
+      const nuevo=rKg(curKg*1.05); // +5% (dentro del 5-10%), redondeado
+      return {tipo:'subir',kg:nuevo,txt:'Completaste las 3×'+repMedio+' con buena técnica. La PRÓXIMA sesión subí a '+nuevo+' kg e intentá mantener las 3×'+repMedio+'.'};
+    }
+    if(estado==='no'){
+      return {tipo:'mantener',txt:'Mantené '+curKg+' kg hasta lograr las 3×'+repMedio+' con buena técnica. Cuando lo consigas, la próxima vez subimos.'};
+    }
     return null;
   };
 
@@ -499,12 +504,31 @@ function Training({user,split,rutinas,setRutinas,exes,wkNum,isViewingPast,sessio
             to&&ex.url&&h('div',{style:{background:'#EBF4FF',borderRadius:'8px',padding:'10px 12px',marginBottom:'10px'}},
               h('a',{href:ex.url,target:'_blank',rel:'noreferrer',style:{fontSize:'13px',color:B,fontWeight:'600',textDecoration:'none'}},'▶ Ver tutorial')
             ),
-            !isViewingPast&&h('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'8px',marginBottom:sg?'10px':'0'}},
+            !isViewingPast&&esDeporte&&h('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'8px',marginBottom:sg?'10px':'0'}},
               SERIES_KEYS.map((k,i)=>h('div',{key:k},
                 h('div',{style:lbl},'Serie '+(i+1)),
                 h('input',{type:'text',inputMode:'numeric',placeholder:'Reps',value:getRep(activeSess,exName,k),onChange:e=>setRep(activeSess,exName,k,e.target.value),style:{...inp,textAlign:'center',fontSize:'22px',fontWeight:'700'}})
               ))
             ),
+            !isViewingPast&&!esDeporte&&(function(){
+              // No-Deporte (tipo Base): pauta fija 3 × medio del rango, solo kg. Confirmar protocolo.
+              var repMedio=Math.round(((ex.low||8)+(ex.hi||12))/2);
+              var estado=protoConf?.[activeSess]?.[exName];
+              var tieneKg=getKg(exName)>0;
+              return h('div',{style:{marginBottom:sg?'10px':'0'}},
+                h('div',{style:{background:'#FFF7ED',border:'1px solid #FED7AA',borderRadius:'8px',padding:'10px 12px',marginBottom:tieneKg?'10px':'0'}},
+                  h('div',{style:{fontSize:'13px',fontWeight:'800',color:'#9A3412'}},'Pauta: 3 series × '+repMedio+' reps'),
+                  h('div',{style:{fontSize:'11px',color:'#B45309',marginTop:'2px'}},'Cargá el kg más alto que te permita completar las 3×'+repMedio+' con buena técnica.')
+                ),
+                tieneKg&&h('div',null,
+                  h('div',{style:{fontSize:'12px',fontWeight:'700',color:'#444',marginBottom:'8px'}},'¿Completaste las 3×'+repMedio+' con buena técnica?'),
+                  h('div',{style:{display:'flex',gap:'8px'}},
+                    h('button',{onClick:function(){setProtoConf(function(p){var n=Object.assign({},p);n[activeSess]=Object.assign({},n[activeSess],{[exName]:'si'});return n;});},style:{flex:1,padding:'8px',borderRadius:'8px',border:'1px solid '+(estado==='si'?G:'rgba(0,0,0,0.12)'),background:estado==='si'?G:'#fff',color:estado==='si'?'#fff':'#666',fontSize:'12px',fontWeight:'700',cursor:'pointer'}},'Sí'),
+                    h('button',{onClick:function(){setProtoConf(function(p){var n=Object.assign({},p);n[activeSess]=Object.assign({},n[activeSess],{[exName]:'no'});return n;});},style:{flex:1,padding:'8px',borderRadius:'8px',border:'1px solid '+(estado==='no'?'#B42318':'rgba(0,0,0,0.12)'),background:estado==='no'?'#FEF3F2':'#fff',color:estado==='no'?'#B42318':'#666',fontSize:'12px',fontWeight:'700',cursor:'pointer'}},'Todavía no')
+                  )
+                )
+              );
+            })(),
             isViewingPast&&h('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:'8px',marginBottom:'0'}},
               SERIES_KEYS.map((k,i)=>h('div',{key:k},
                 h('div',{style:lbl},'Serie '+(i+1)),
@@ -512,10 +536,10 @@ function Training({user,split,rutinas,setRutinas,exes,wkNum,isViewingPast,sessio
               ))
             ),
             sg&&!isViewingPast&&(function(){
-              var bg=sg.tipo==='subir'?'#EAF7F2':sg.tipo==='bajar'?'#FEF3F2':'#EFF6FF';
-              var bd=sg.tipo==='subir'?'#A3DFC8':sg.tipo==='bajar'?'#FECDCA':'#BFDBFE';
-              var col=sg.tipo==='subir'?G:sg.tipo==='bajar'?'#B42318':B;
-              var ico=sg.tipo==='subir'?'↑':sg.tipo==='bajar'?'↓':'◎';
+              var bg=sg.tipo==='subir'?'#EAF7F2':sg.tipo==='bajar'?'#FEF3F2':sg.tipo==='mantener'?'#FFF7ED':'#EFF6FF';
+              var bd=sg.tipo==='subir'?'#A3DFC8':sg.tipo==='bajar'?'#FECDCA':sg.tipo==='mantener'?'#FED7AA':'#BFDBFE';
+              var col=sg.tipo==='subir'?G:sg.tipo==='bajar'?'#B42318':sg.tipo==='mantener'?'#9A3412':B;
+              var ico=sg.tipo==='subir'?'↑':sg.tipo==='bajar'?'↓':sg.tipo==='mantener'?'=':'◎';
               return h('div',{style:{background:bg,border:'1px solid '+bd,borderRadius:'8px',padding:'10px 12px',display:'flex',gap:'8px',alignItems:'flex-start'}},
                 h('span',{style:{fontSize:'15px',fontWeight:'800',color:col,flexShrink:0}},ico),
                 h('span',{style:{fontSize:'12px',color:col,fontWeight:'600',lineHeight:'1.4'}},sg.txt)
