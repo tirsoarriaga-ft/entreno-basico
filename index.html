@@ -282,7 +282,10 @@ function Training({user,split,rutinas,setRutinas,exes,wkNum,isViewingPast,sessio
   const getRep=(sess,exName,k)=>sessionReps?.[sess]?.[exName]?.[k]||'';
   // Reps "confirmadas" (al salir del campo). La sugerencia se calcula con estas, no con el tipeo en vivo.
   const [repsConf,setRepsConf]=useState({});
-  const [protoConf,setProtoConf]=useState({}); // No-Deporte: {exName:'si'|'no'} cumplió el protocolo (no va al sheet)
+  // No-Deporte: cumplió el protocolo. Persiste en localStorage (por semana+sesión).
+  const protoConfKey=`bas_${user}_protoConf_${wkNum}`;
+  const [protoConf,setProtoConf]=useState(()=>{try{return JSON.parse(localStorage.getItem(`bas_${user}_protoConf_${wkNum}`)||'{}');}catch(e){return{};}});
+  useEffect(()=>{try{localStorage.setItem(protoConfKey,JSON.stringify(protoConf));}catch(e){}},[protoConf,protoConfKey]);
   // Confirmar reps con DEBOUNCE: 700ms después de la última tecla (equivale a "cerrar teclado"),
   // sin depender del onBlur (poco confiable en móvil). La sugerencia no parpadea con cada tecla,
   // pero aparece sola al terminar de escribir — sin necesidad de tocar Guardar.
