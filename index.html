@@ -286,6 +286,15 @@ function Training({user,split,rutinas,setRutinas,exes,wkNum,isViewingPast,sessio
   const protoConfKey=`bas_${user}_protoConf_${wkNum}`;
   const [protoConf,setProtoConf]=useState(()=>{try{return JSON.parse(localStorage.getItem(`bas_${user}_protoConf_${wkNum}`)||'{}');}catch(e){return{};}});
   useEffect(()=>{try{localStorage.setItem(protoConfKey,JSON.stringify(protoConf));}catch(e){}},[protoConf,protoConfKey]);
+  // Reset semanal: al cambiar de semana, recargar las respuestas de ESA semana (vacío si es nueva).
+  // Así las preguntas de cumplimiento se responden de nuevo cada semana a medida que entrena.
+  const wkRef=useRef(wkNum);
+  useEffect(()=>{
+    if(wkRef.current!==wkNum){
+      wkRef.current=wkNum;
+      try{setProtoConf(JSON.parse(localStorage.getItem(`bas_${user}_protoConf_${wkNum}`)||'{}'));}catch(e){setProtoConf({});}
+    }
+  },[wkNum,user]);
   // Confirmar reps con DEBOUNCE: 700ms después de la última tecla (equivale a "cerrar teclado"),
   // sin depender del onBlur (poco confiable en móvil). La sugerencia no parpadea con cada tecla,
   // pero aparece sola al terminar de escribir — sin necesidad de tocar Guardar.
@@ -521,8 +530,34 @@ function Training({user,split,rutinas,setRutinas,exes,wkNum,isViewingPast,sessio
                 tieneKg&&h('div',null,
                   h('div',{style:{fontSize:'12px',fontWeight:'700',color:'#444',marginBottom:'8px'}},'¿Completaste las 3×'+repMedio+' con buena técnica?'),
                   h('div',{style:{display:'flex',gap:'8px'}},
-                    h('button',{onClick:function(){setProtoConf(function(p){var n=Object.assign({},p);n[activeSess]=Object.assign({},n[activeSess],{[exName]:'si'});return n;});},style:{flex:1,padding:'8px',borderRadius:'8px',border:'1px solid '+(estado==='si'?G:'rgba(0,0,0,0.12)'),background:estado==='si'?G:'#fff',color:estado==='si'?'#fff':'#666',fontSize:'12px',fontWeight:'700',cursor:'pointer'}},'Sí'),
-                    h('button',{onClick:function(){setProtoConf(function(p){var n=Object.assign({},p);n[activeSess]=Object.assign({},n[activeSess],{[exName]:'no'});return n;});},style:{flex:1,padding:'8px',borderRadius:'8px',border:'1px solid '+(estado==='no'?'#B42318':'rgba(0,0,0,0.12)'),background:estado==='no'?'#FEF3F2':'#fff',color:estado==='no'?'#B42318':'#666',fontSize:'12px',fontWeight:'700',cursor:'pointer'}},'Todavía no')
+                    h('button',{onClick:function(){
+                      setProtoConf(function(p){var n=Object.assign({},p);n[activeSess]=Object.assign({},n[activeSess],{[exName]:'si'});return n;});
+                      // Progresión automática: al confirmar que cumplió, subir el kg +5% para el próximo entreno.
+                      // Se marca que ya progresó esta semana/sesión, para no subir varias veces si vuelve a tocar "Sí".
+                      if(!esDeporte){
+                        var progKey='bas_'+user+'_prog_'+wkNum+'_'+activeSess+'_'+exName;
+                        if(!localStorage.getItem(progKey)){
+                          var curK=getKg(exName);
+                          if(curK&&curK>0){
+                            var nuevoK=rKg(curK*1.05);
+                            setKgForEx(exName,nuevoK);
+                            try{localStorage.setItem(progKey,'1');}catch(e){}
+                          }
+                        }
+                      }
+                    },style:{flex:1,padding:'8px',borderRadius:'8px',border:'1px solid '+(estado==='si'?G:'rgba(0,0,0,0.12)'),background:estado==='si'?G:'#fff',color:estado==='si'?'#fff':'#666',fontSize:'12px',fontWeight:'700',cursor:'pointer'}},'Sí'),
+                    h('button',{onClick:function(){
+                      setProtoConf(function(p){var n=Object.assign({},p);n[activeSess]=Object.assign({},n[activeSess],{[exName]:'no'});return n;});
+                      // Si se arrepiente y marca "no", revertir la progresión de esta semana (si la había)
+                      if(!esDeporte){
+                        var progKey='bas_'+user+'_prog_'+wkNum+'_'+activeSess+'_'+exName;
+                        if(localStorage.getItem(progKey)){
+                          var curK=getKg(exName);
+                          if(curK&&curK>0){ setKgForEx(exName,rKg(curK/1.05)); }
+                          try{localStorage.removeItem(progKey);}catch(e){}
+                        }
+                      }
+                    },style:{flex:1,padding:'8px',borderRadius:'8px',border:'1px solid '+(estado==='no'?'#B42318':'rgba(0,0,0,0.12)'),background:estado==='no'?'#FEF3F2':'#fff',color:estado==='no'?'#B42318':'#666',fontSize:'12px',fontWeight:'700',cursor:'pointer'}},'Todavía no')
                   )
                 )
               );
