@@ -705,11 +705,14 @@ function App(){
     const realNum=getRealWkNum(user);
     const storedNum=parseInt(localStorage.getItem(`bas_${user}_wknum`))||1;
     localStorage.setItem(`bas_${user}_maxWkNum`,String(realNum));
-    const correctedNum=Math.min(storedNum,realNum);
-    if(correctedNum!==storedNum)localStorage.setItem(`bas_${user}_wknum`,String(correctedNum));
-    const isFirstTime=storedNum<=1&&realNum>1&&!localStorage.getItem(`bas_${user}_hadAdvanced`);
-    const wkNum=isFirstTime?realNum:correctedNum;
-    if(isFirstTime){localStorage.setItem(`bas_${user}_wknum`,String(realNum));localStorage.setItem(`bas_${user}_hadAdvanced`,'1');}
+    // AUTO-AVANCE: la app siempre se posiciona en la semana ACTUAL del calendario (realNum),
+    // sin esperar que el asesorado toque "Nueva". Así el lunes de cada semana arranca limpio
+    // (reps, kg y respuestas de protocolo se guardan por semana en claves separadas).
+    const wkNum=realNum;
+    if(String(storedNum)!==String(realNum)){
+      localStorage.setItem(`bas_${user}_wknum`,String(realNum));
+    }
+    const correctedNum=realNum; // el draft/saved se restauran desde la semana actual
     setWk(getWkForNum(user,wkNum));
 
     // Restaurar draft
