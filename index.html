@@ -220,7 +220,8 @@ function Training({user,split,rutinas,setRutinas,exes,wkNum,isViewingPast,sessio
     2:'Semana 2: podés subir un poco el peso. Todavía no es el peso de trabajo real.',
   };
   const is5day=split==='5H'||split==='5M';
-  const is4day=split==='4H'||split==='4M';
+  // 4 días: incluye los splits de gym (4H/4M) Y el de deporte (4D). Antes 4D caía en 3 sesiones.
+  const is4day=split==='4H'||split==='4M'||split==='4D';
   const sesiones=is5day?['A','B','C','D','E']:is4day?['A','B','C','D']:['A','B','C'];
   const [sessOverride,setSessOverride]=useState({});
   // Sesión activa
