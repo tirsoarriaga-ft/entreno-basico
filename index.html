@@ -334,6 +334,18 @@ function Training({user,split,blockCfg,rutinas,setRutinas,exes,wk,isViewingPast,
     try{localStorage.setItem(nextLoadKey,JSON.stringify(all));}catch(e){}
   };
 
+  // Futuro visible: mostrar la carga que ya quedó decidida en la semana anterior,
+  // pero sin aplicarla a sessKg hasta que el calendario llegue realmente a esa semana.
+  const projectedLoadFor=(slotKey,exName)=>{
+    if(!isViewingFuture||wk.num<=1)return null;
+    try{
+      const prev=JSON.parse(localStorage.getItem(`bas_${user}_nextLoad_${blockCfg.cycleId}_${wk.num-1}`)||'{}')||{};
+      const item=prev?.[activeSess]?.[slotKey]||Object.values(prev?.[activeSess]||{}).find(x=>x&&x.exName===exName);
+      if(item&&parseFloat(item.nextKg)>0)return parseFloat(item.nextKg);
+    }catch(e){}
+    return null;
+  };
+
   // Cumplimiento basal: se conserva y opera encima de la dosificación del bloque.
   const protoConfKey=`bas_${user}_protoConf_${wk.id}`;
   const [protoConf,setProtoConf]=useState(()=>{try{return JSON.parse(localStorage.getItem(protoConfKey)||'{}');}catch(e){return{};}});
@@ -443,6 +455,8 @@ function Training({user,split,blockCfg,rutinas,setRutinas,exes,wk,isViewingPast,
       const renderCard=w=>{
         const ex=w.ex,exName=ex.n,curKg=getKg(exName),editing=editKg===exName,pr=getPR(exName),nSeries=seriesFor(w),fixedRep=repMedio(ex);
         const slotKey=w.origName;
+        const projectedKg=projectedLoadFor(slotKey,exName);
+        const displayKg=(isViewingFuture&&projectedKg!=null)?projectedKg:curKg;
         const estado=protoConf?.[activeSess]?.[slotKey]||protoConf?.[activeSess]?.[exName]||'';
         const setEstado=val=>{
           if(isReadOnly)return;
@@ -455,21 +469,20 @@ function Training({user,split,blockCfg,rutinas,setRutinas,exes,wk,isViewingPast,
           editing
             ?h('input',{type:'text',inputMode:'decimal',value:kgVal,onChange:e=>setKgVal(e.target.value),onBlur:()=>doSaveKg(exName,kgVal),onKeyDown:e=>e.key==='Enter'&&doSaveKg(exName,kgVal),autoFocus:true,style:{width:'68px',padding:'6px',fontSize:'18px',fontWeight:'800',textAlign:'center',border:`2px solid ${G}`,borderRadius:'7px'}})
             :h('div',{onClick:()=>{if(!isReadOnly){setEditKg(exName);setKgVal(curKg==null?'':String(curKg));}},style:{cursor:isReadOnly?'default':'pointer'}},
-                h('div',{style:{fontSize:'21px',fontWeight:'900',color:curKg==null?'#ddd':'#111'}},curKg==null?'—':curKg,h('span',{style:{fontSize:'12px',color:'#999'}},' kg')),
+                h('div',{style:{fontSize:'21px',fontWeight:'900',color:displayKg==null?'#ddd':'#111'}},displayKg==null?'—':displayKg,h('span',{style:{fontSize:'12px',color:'#999'}},' kg')),
+                isViewingFuture&&projectedKg!=null&&h('div',{style:{fontSize:'9px',color:B,fontWeight:'800'}},'carga prevista'),
                 !isReadOnly&&h('div',{style:{fontSize:'9px',color:AC}},curKg==null?'establecer peso':'toca para editar')
               )
         );
+        const conceptLine=(content,style={})=>h('div',{style:{padding:'3px 0',fontSize:'11px',color:'#666',...style}},content);
         const header=h('div',{style:{marginBottom:'10px'}},
-          h('div',{style:{fontWeight:'900',fontSize:'15px',marginBottom:'6px'}},exName),
-          h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'5px 0',borderTop:'1px solid #F1F1F1'}},
-            h('span',{style:{fontSize:'10px',color:'#888',fontWeight:'800'}},'ROL'),
-            h('span',{style:{fontSize:'10px',fontWeight:'900',padding:'2px 7px',borderRadius:'20px',background:w.role==='P'?'#FEE2E2':w.role==='N'?'#E0F2FE':'#F3F4F6',color:w.role==='P'?'#B91C1C':w.role==='N'?'#0369A1':'#666'}},w.role+' · '+roleText(w.role))
-          ),
-          ex.m&&h('div',{style:{display:'flex',justifyContent:'space-between',padding:'5px 0',borderTop:'1px solid #F1F1F1',fontSize:'11px'}},h('span',{style:{color:'#888',fontWeight:'800'}},'FUNCIÓN'),h('span',{style:{color:'#555'}},ex.m+' · slot '+w.pos)),
-          ex.url&&h('div',{style:{display:'flex',justifyContent:'space-between',padding:'5px 0',borderTop:'1px solid #F1F1F1'}},h('span',{style:{fontSize:'11px',color:'#888',fontWeight:'800'}},'TUTORIAL'),h('button',{onClick:()=>setTut(tut===exName?null:exName),style:{background:'none',border:'none',padding:0,color:'#777',textDecoration:'underline',fontSize:'11px'}},tut===exName?'Cerrar':'Ver')),
-          getEquivs(w).length>0&&h('div',{style:{display:'flex',justifyContent:'space-between',padding:'5px 0',borderTop:'1px solid #F1F1F1'}},h('span',{style:{fontSize:'11px',color:'#888',fontWeight:'800'}},'EQUIVALENCIA'),h('button',{onClick:()=>setExEquiv(w),style:{background:'none',border:'none',padding:0,color:AC,fontWeight:'800',fontSize:'11px'}},'≡ Equiv.')),
-          pr&&h('div',{style:{display:'flex',justifyContent:'space-between',padding:'5px 0',borderTop:'1px solid #F1F1F1',fontSize:'10px'}},h('span',{style:{color:'#888',fontWeight:'800'}},'ANTERIOR'),h('span',{style:{color:G,fontWeight:'800'}},pr.reps+' × '+pr.kg+' kg')),
-          kgBox&&h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 0',borderTop:'1px solid #F1F1F1'}},h('span',{style:{fontSize:'11px',color:'#888',fontWeight:'800'}},'CARGA'),kgBox)
+          h('div',{style:{fontWeight:'900',fontSize:'15px',marginBottom:'5px'}},exName),
+          conceptLine(roleText(w.role),{fontWeight:'800',color:w.role==='P'?'#B91C1C':w.role==='N'?'#0369A1':'#666'}),
+          ex.m&&conceptLine(ex.m),
+          ex.url&&h('div',{style:{padding:'3px 0'}},h('button',{onClick:()=>setTut(tut===exName?null:exName),style:{background:'none',border:'none',padding:0,color:'#777',textDecoration:'underline',fontSize:'11px'}},tut===exName?'Cerrar tutorial':'Ver tutorial')),
+          getEquivs(w).length>0&&h('div',{style:{padding:'3px 0'}},h('button',{onClick:()=>setExEquiv(w),style:{background:'none',border:'none',padding:0,color:AC,fontWeight:'800',fontSize:'11px'}},'≡ Equiv.')),
+          pr&&conceptLine('Anterior: '+pr.reps+' × '+pr.kg+' kg',{color:G,fontWeight:'800'}),
+          kgBox&&h('div',{style:{display:'flex',justifyContent:'flex-end',alignItems:'center',padding:'5px 0'}},kgBox)
         );
 
         const forceMain=()=>{
@@ -529,22 +542,24 @@ function Training({user,split,blockCfg,rutinas,setRutinas,exes,wk,isViewingPast,
         const normalDose=()=>{
           const technique=block==='intensidad'&&w.role==='P';
           return h('div',null,
-            approxRows(curKg,block),
+            approxRows(displayKg,block),
             h('div',{style:{background:'#FFF7ED',border:'1px solid #FED7AA',borderRadius:'9px',padding:'10px',marginBottom:'8px'}},
               h('div',{style:{fontSize:'13px',fontWeight:'900',color:'#9A3412'}},'Pauta: '+nSeries+' '+(nSeries===1?'serie':'series')+' × '+fixedRep+' reps'),
               h('div',{style:{fontSize:'11px',color:'#B45309',marginTop:'2px'}},'Usá el kg más alto que te permita completar la pauta con buena técnica.'),
               technique&&h('div',{style:{marginTop:'8px',paddingTop:'8px',borderTop:'1px solid #FED7AA',fontSize:'11px',fontWeight:'800',color:'#7C2D12'}},'Técnica de intensidad: '+(ex.intensityTech||'NO CONFIGURADA EN SHEET'))
             ),
-            curKg>0&&h('div',null,
-              h('div',{style:{fontSize:'12px',fontWeight:'700',color:'#444',marginBottom:'7px'}},'¿Completaste '+nSeries+'×'+fixedRep+(technique&&ex.intensityTech?' + técnica':'')+' con buena técnica?'),
-              estado&&h('div',{style:{fontSize:'11px',color:'#777',marginBottom:'7px'}},estado==='si'?'Próxima semana: '+rKg(curKg*1.05)+' kg':'Próxima semana: mantener '+curKg+' kg'),
-              isReadOnly
-                ?h('div',{style:{fontSize:'12px',fontWeight:'800',color:estado==='si'?G:estado==='no'?R:'#999'}},estado==='si'?'✓ Cumplí':estado==='no'?'No cumplí':'Sin registro')
-                :h('div',{style:{display:'flex',gap:'7px'}},
-                    h('button',{onClick:()=>setEstado('si'),style:{flex:1,padding:'8px',borderRadius:'8px',border:'1px solid '+(estado==='si'?G:'#ddd'),background:estado==='si'?G:'#fff',color:estado==='si'?'#fff':'#666',fontWeight:'800'}},'Cumplí'),
-                    h('button',{onClick:()=>setEstado('no'),style:{flex:1,padding:'8px',borderRadius:'8px',border:'1px solid '+(estado==='no'?R:'#ddd'),background:estado==='no'?'#FEF2F2':'#fff',color:estado==='no'?'#B91C1C':'#666',fontWeight:'800'}},'No cumplí')
-                  )
-            )
+            isViewingFuture
+              ?h('div',{style:{fontSize:'11px',color:'#64748B',padding:'7px 0'}},projectedKg!=null?'Carga prevista para esta semana: '+projectedKg+' kg. Se aplicará a sessKg cuando el calendario llegue a S'+wk.num+'.':'La carga de esta semana todavía depende del cumplimiento de la semana anterior.')
+              :curKg>0&&h('div',null,
+                  h('div',{style:{fontSize:'12px',fontWeight:'700',color:'#444',marginBottom:'7px'}},'¿Completaste '+nSeries+'×'+fixedRep+(technique&&ex.intensityTech?' + técnica':'')+' con buena técnica?'),
+                  estado&&h('div',{style:{fontSize:'11px',color:'#777',marginBottom:'7px'}},estado==='si'?'Próxima semana: '+rKg(curKg*1.05)+' kg':'Próxima semana: mantener '+curKg+' kg'),
+                  isViewingPast
+                    ?h('div',{style:{fontSize:'12px',fontWeight:'800',color:estado==='si'?G:estado==='no'?R:'#999'}},estado==='si'?'✓ Cumplí':estado==='no'?'No cumplí':'Sin registro')
+                    :h('div',{style:{display:'flex',gap:'7px'}},
+                        h('button',{onClick:()=>setEstado('si'),style:{flex:1,padding:'8px',borderRadius:'8px',border:'1px solid '+(estado==='si'?G:'#ddd'),background:estado==='si'?G:'#fff',color:estado==='si'?'#fff':'#666',fontWeight:'800'}},'Cumplí'),
+                        h('button',{onClick:()=>setEstado('no'),style:{flex:1,padding:'8px',borderRadius:'8px',border:'1px solid '+(estado==='no'?R:'#ddd'),background:estado==='no'?'#FEF2F2':'#fff',color:estado==='no'?'#B91C1C':'#666',fontWeight:'800'}},'No cumplí')
+                      )
+                )
           );
         };
 
@@ -620,6 +635,28 @@ function Dashboard({user,hist,exes,rutinas,split}){
         h('span',{style:{color:'#999',fontSize:'12px'}},w.split||split)
       ))
     )
+  );
+}
+
+// ── CÓMO FUNCIONA ─────────────────────────────────────────────────────
+function HowWorks({blockCfg,split,wk}){
+  const slots=[
+    ['Cómo registrar','Texto pendiente de revisión.'],
+    ['Cómo progresa la carga','Texto pendiente de revisión.'],
+    ['Volumen','Texto pendiente de revisión.'],
+    ['Intensidad','Texto pendiente de revisión.'],
+    ['Fuerza','Texto pendiente de revisión.']
+  ];
+  return h('div',null,
+    h('div',{style:{...card,background:'#111',color:'#fff'}},
+      h('div',{style:{fontSize:'10px',fontWeight:'900',color:AC,textTransform:'uppercase',letterSpacing:'.1em'}},'Cómo funciona'),
+      h('div',{style:{fontSize:'17px',fontWeight:'900',marginTop:'4px'}},'Tu planificación en 8 semanas'),
+      h('div',{style:{fontSize:'11px',color:'rgba(255,255,255,.6)',marginTop:'5px'}},'La estructura ya está definida. Los textos explicativos se cargan después de revisarlos.')
+    ),
+    slots.map((x,i)=>h('div',{key:i,style:card},
+      h('div',{style:{fontSize:'13px',fontWeight:'900',color:'#111'}},x[0]),
+      h('div',{style:{fontSize:'11px',color:'#aaa',marginTop:'5px'}},x[1])
+    ))
   );
 }
 
@@ -812,7 +849,7 @@ function App(){
     setBlockCfg(null);setSplit(null);setSessionReps({});setSaved(false);setTab('d');
   };
 
-  const TABS=[{id:'d',l:'Inicio',ic:'🏠'},{id:'t',l:'Entreno',ic:'🏋️'}];
+  const TABS=[{id:'d',l:'Cómo funciona',ic:'ℹ️'},{id:'t',l:'Entreno',ic:'🏋️'}];
   const showAjustar=new URLSearchParams(window.location.search).get('ajustar')==='true';
   if(showAjustar)return h(AjustarBasica,{onClose:()=>window.location.href=window.location.pathname});
   if(!user)return h(Login,{onLogin:login});
@@ -840,14 +877,10 @@ function App(){
       )
     ),
     h('div',{style:{padding:'14px',paddingBottom:'80px'}},
-      fallback&&h('div',{style:{background:'#FFF7ED',border:'1px solid #FED7AA',borderRadius:'10px',padding:'10px 12px',fontSize:'11px',color:'#9A3412',fontWeight:'700',marginBottom:'10px'}},'Plantilla transitoria: '+split+' está usando '+fallback+'. Creá la fila canónica en RutinasBasicas para completar esta estructura.'),
       loading&&h('div',{style:{...card,textAlign:'center',padding:'28px'}},'⏳ Cargando rutinas...'),
       isViewingPast&&h('div',{style:{background:'#111',borderRadius:'10px',padding:'10px 12px',color:'#fff',fontSize:'11px',fontWeight:'700',marginBottom:'10px'}},'🔒 Semana pasada · solo lectura'),
       isViewingFuture&&h('div',{style:{background:'#EFF6FF',border:'1px solid #BFDBFE',borderRadius:'10px',padding:'10px 12px',color:'#1D4ED8',fontSize:'11px',fontWeight:'700',marginBottom:'10px'}},'👁 Semana futura · plan visible en solo lectura. El calendario habilita el registro cuando llegue.'),
-      !loading&&tab==='d'&&h('div',null,
-        h('div',{style:card},h('div',{style:lbl},'Bloque activo'),h('div',{style:{fontSize:'20px',fontWeight:'900'}},BLOCK_LABELS[blockCfg.block]+' · Semana '+wk.num+'/8'+(wk.num===currentBlockWeek?' · actual':wk.num<currentBlockWeek?' · pasada':' · futura')),h('div',{style:{fontSize:'12px',color:'#777',marginTop:'5px'}},SPLIT_LABELS[split])),
-        h(Dashboard,{user,hist,exes,rutinas,split})
-      ),
+      !loading&&tab==='d'&&h(HowWorks,{blockCfg,split,wk}),
       !loading&&tab==='t'&&h(Training,{user,split,blockCfg,rutinas,setRutinas,exes,wk,isViewingPast,isViewingFuture,sessionReps,setSessionReps,sessionKg,setSessionKg,hist,setSaved})
     ),
     h('div',{style:{background:'#0A0A0A',borderTop:'1px solid rgba(255,255,255,.06)',display:'flex',position:'sticky',bottom:0,zIndex:10}},TABS.map(t=>h('button',{key:t.id,onClick:()=>setTab(t.id),style:{flex:1,padding:'10px 2px 14px',fontSize:'10px',background:'none',border:'none',borderTop:tab===t.id?`2px solid ${AC}`:'2px solid transparent',color:tab===t.id?AC:'rgba(255,255,255,.35)',fontWeight:tab===t.id?'800':'400'}},h('span',{style:{fontSize:'18px',display:'block'}},t.ic),t.l)))
