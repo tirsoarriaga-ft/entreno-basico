@@ -266,10 +266,11 @@ function Login({onLogin}){
 }
 
 // ── TRAINING ─────────────────────────────────────────────────────────
-function Training({user,split,blockCfg,rutinas,setRutinas,exes,wk,isViewingPast,sessionReps,setSessionReps,sessionKg,setSessionKg,hist,setSaved}){
+function Training({user,split,blockCfg,rutinas,setRutinas,exes,wk,isViewingPast,isViewingFuture,sessionReps,setSessionReps,sessionKg,setSessionKg,hist,setSaved}){
   const SERIES_KEYS=['r1','r2','r3','r4','r5'];
   const block=String(blockCfg?.block||'volumen');
   const blockWeek=Math.max(1,Math.min(8,parseInt(wk?.num)||1));
+  const isReadOnly=!!(isViewingPast||isViewingFuture);
   const days=parseInt(blockCfg?.days)||3;
   const sesiones=['A','B','C','D','E'].slice(0,days);
   const is5day=days===5;
@@ -317,7 +318,20 @@ function Training({user,split,blockCfg,rutinas,setRutinas,exes,wk,isViewingPast,
   };
   const getRep=(sess,exName,k)=>sessionReps?.[sess]?.[exName]?.[k]||'';
   const setRep=(sess,exName,k,v)=>{
+    if(isReadOnly)return;
     setSessionReps(prev=>{const next={...prev};next[sess]={...(next[sess]||{})};next[sess][exName]={...(next[sess][exName]||{}),[k]:v};return next;});setSaved(false);
+  };
+
+  // Resultado de esta semana -> carga de la próxima semana. Nunca muta sessKg en el momento.
+  const nextLoadKey=`bas_${user}_nextLoad_${blockCfg.cycleId}_${wk.num}`;
+  const readNextLoad=()=>{try{return JSON.parse(localStorage.getItem(nextLoadKey)||'{}')||{};}catch(e){return{};}};
+  const writeNextLoad=(slotKey,exName,val,baseKg)=>{
+    if(isReadOnly)return;
+    const all=readNextLoad();
+    if(!all[activeSess])all[activeSess]={};
+    if(val==='si'&&parseFloat(baseKg)>0)all[activeSess][slotKey]={exName,decision:'si',baseKg:parseFloat(baseKg),nextKg:rKg(parseFloat(baseKg)*1.05)};
+    else all[activeSess][slotKey]={exName,decision:'no',baseKg:parseFloat(baseKg)||0,nextKg:parseFloat(baseKg)||0};
+    try{localStorage.setItem(nextLoadKey,JSON.stringify(all));}catch(e){}
   };
 
   // Cumplimiento basal: se conserva y opera encima de la dosificación del bloque.
@@ -348,6 +362,14 @@ function Training({user,split,blockCfg,rutinas,setRutinas,exes,wk,isViewingPast,
   const forceAuthorized=ex=>{
     const fam=_norm(ex.forceFamily||'');const n=_norm(ex.n||'');
     return ['sentadilla','peso muerto','banco plano','dominada','dominadas'].some(x=>fam.includes(x)||n.includes(x));
+  };
+  const approxRows=(baseKg,mode)=>{
+    const kg=parseFloat(baseKg)||0;if(kg<=0)return null;
+    const a1=roundForce(kg*.50),a2=roundForce(kg*.75);
+    return h('div',{style:{marginBottom:'8px'}},
+      h('div',{style:{display:'flex',justifyContent:'space-between',padding:'6px 0',borderBottom:'1px solid #eee',fontSize:'11px'}},h('span',{style:{fontWeight:'800',color:'#666'}},'Aproximación 1'),h('span',null,(mode==='intensidad'?'15 reps · ':'')+a1+' kg')),
+      h('div',{style:{display:'flex',justifyContent:'space-between',padding:'6px 0',fontSize:'11px'}},h('span',{style:{fontWeight:'800',color:'#666'}},'Aproximación 2'),h('span',null,(mode==='intensidad'?'8 reps · ':'')+a2+' kg'))
+    );
   };
   const forceKey=w=>{
     const id=w.origId!=null?String(w.origId):_norm(w.origName).replace(/[^a-z0-9]+/g,'_');
@@ -423,40 +445,31 @@ function Training({user,split,blockCfg,rutinas,setRutinas,exes,wk,isViewingPast,
         const slotKey=w.origName;
         const estado=protoConf?.[activeSess]?.[slotKey]||protoConf?.[activeSess]?.[exName]||'';
         const setEstado=val=>{
-          if(isViewingPast)return;
+          if(isReadOnly)return;
           setProtoConf(p=>({...p,[activeSess]:{...(p[activeSess]||{}),[slotKey]:val}}));
-          // Progresión basal única: Cumplí => próxima carga +5%; No => mantener.
-          const progKey=`bas_${user}_prog_${wk.id}_${activeSess}_${slotKey}`;
-          if(val==='si'&&block!=='fuerza' || (val==='si'&&block==='fuerza'&&w.pos!==1)){
-            if(!localStorage.getItem(progKey)&&curKg>0){setKgForEx(exName,rKg(curKg*1.05));try{localStorage.setItem(progKey,'1');}catch(e){}}
-          }
-          if(val==='no'&&localStorage.getItem(progKey)){
-            const nowKg=getKg(exName);if(nowKg>0)setKgForEx(exName,rKg(nowKg/1.05));try{localStorage.removeItem(progKey);}catch(e){}
-          }
+          // Cumplí/No cumplí define la carga de la próxima semana, sin tocar la ejecución actual.
+          if(!(block==='fuerza'&&w.pos===1))writeNextLoad(slotKey,exName,val,curKg);
           setSaved(false);
         };
         const kgBox=(block==='fuerza'&&w.pos===1)?null:h('div',{style:{textAlign:'right'}},
           editing
             ?h('input',{type:'text',inputMode:'decimal',value:kgVal,onChange:e=>setKgVal(e.target.value),onBlur:()=>doSaveKg(exName,kgVal),onKeyDown:e=>e.key==='Enter'&&doSaveKg(exName,kgVal),autoFocus:true,style:{width:'68px',padding:'6px',fontSize:'18px',fontWeight:'800',textAlign:'center',border:`2px solid ${G}`,borderRadius:'7px'}})
-            :h('div',{onClick:()=>{if(!isViewingPast){setEditKg(exName);setKgVal(curKg==null?'':String(curKg));}},style:{cursor:isViewingPast?'default':'pointer'}},
+            :h('div',{onClick:()=>{if(!isReadOnly){setEditKg(exName);setKgVal(curKg==null?'':String(curKg));}},style:{cursor:isReadOnly?'default':'pointer'}},
                 h('div',{style:{fontSize:'21px',fontWeight:'900',color:curKg==null?'#ddd':'#111'}},curKg==null?'—':curKg,h('span',{style:{fontSize:'12px',color:'#999'}},' kg')),
-                !isViewingPast&&h('div',{style:{fontSize:'9px',color:AC}},curKg==null?'establecer peso':'toca para editar')
+                !isReadOnly&&h('div',{style:{fontSize:'9px',color:AC}},curKg==null?'establecer peso':'toca para editar')
               )
         );
-        const header=h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:'8px',marginBottom:'10px'}},
-          h('div',{style:{flex:1}},
-            h('div',{style:{display:'flex',gap:'6px',alignItems:'center',flexWrap:'wrap'}},
-              h('div',{style:{fontWeight:'900',fontSize:'15px'}},exName),
-              h('span',{style:{fontSize:'9px',fontWeight:'900',padding:'2px 7px',borderRadius:'20px',background:w.role==='P'?'#FEE2E2':w.role==='N'?'#E0F2FE':'#F3F4F6',color:w.role==='P'?'#B91C1C':w.role==='N'?'#0369A1':'#666'}},w.role+' · '+roleText(w.role))
-            ),
-            ex.m&&h('div',{style:{fontSize:'11px',color:'#888',marginTop:'4px'}},ex.m+' · slot '+w.pos),
-            h('div',{style:{display:'flex',gap:'8px',marginTop:'5px'}},
-              ex.url&&h('button',{onClick:()=>setTut(tut===exName?null:exName),style:{background:'none',border:'none',padding:0,color:'#777',textDecoration:'underline',fontSize:'11px'}},'Tutorial'),
-              getEquivs(w).length>0&&h('button',{onClick:()=>setExEquiv(w),style:{background:'none',border:'none',padding:0,color:AC,fontWeight:'800',fontSize:'11px'}},'≡ Equiv.')
-            ),
-            pr&&h('div',{style:{fontSize:'10px',color:G,fontWeight:'700',marginTop:'4px'}},'Ant.: '+pr.reps+' × '+pr.kg+' kg')
+        const header=h('div',{style:{marginBottom:'10px'}},
+          h('div',{style:{fontWeight:'900',fontSize:'15px',marginBottom:'6px'}},exName),
+          h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'5px 0',borderTop:'1px solid #F1F1F1'}},
+            h('span',{style:{fontSize:'10px',color:'#888',fontWeight:'800'}},'ROL'),
+            h('span',{style:{fontSize:'10px',fontWeight:'900',padding:'2px 7px',borderRadius:'20px',background:w.role==='P'?'#FEE2E2':w.role==='N'?'#E0F2FE':'#F3F4F6',color:w.role==='P'?'#B91C1C':w.role==='N'?'#0369A1':'#666'}},w.role+' · '+roleText(w.role))
           ),
-          kgBox
+          ex.m&&h('div',{style:{display:'flex',justifyContent:'space-between',padding:'5px 0',borderTop:'1px solid #F1F1F1',fontSize:'11px'}},h('span',{style:{color:'#888',fontWeight:'800'}},'FUNCIÓN'),h('span',{style:{color:'#555'}},ex.m+' · slot '+w.pos)),
+          ex.url&&h('div',{style:{display:'flex',justifyContent:'space-between',padding:'5px 0',borderTop:'1px solid #F1F1F1'}},h('span',{style:{fontSize:'11px',color:'#888',fontWeight:'800'}},'TUTORIAL'),h('button',{onClick:()=>setTut(tut===exName?null:exName),style:{background:'none',border:'none',padding:0,color:'#777',textDecoration:'underline',fontSize:'11px'}},tut===exName?'Cerrar':'Ver')),
+          getEquivs(w).length>0&&h('div',{style:{display:'flex',justifyContent:'space-between',padding:'5px 0',borderTop:'1px solid #F1F1F1'}},h('span',{style:{fontSize:'11px',color:'#888',fontWeight:'800'}},'EQUIVALENCIA'),h('button',{onClick:()=>setExEquiv(w),style:{background:'none',border:'none',padding:0,color:AC,fontWeight:'800',fontSize:'11px'}},'≡ Equiv.')),
+          pr&&h('div',{style:{display:'flex',justifyContent:'space-between',padding:'5px 0',borderTop:'1px solid #F1F1F1',fontSize:'10px'}},h('span',{style:{color:'#888',fontWeight:'800'}},'ANTERIOR'),h('span',{style:{color:G,fontWeight:'800'}},pr.reps+' × '+pr.kg+' kg')),
+          kgBox&&h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'6px 0',borderTop:'1px solid #F1F1F1'}},h('span',{style:{fontSize:'11px',color:'#888',fontWeight:'800'}},'CARGA'),kgBox)
         );
 
         const forceMain=()=>{
@@ -468,16 +481,16 @@ function Training({user,split,blockCfg,rutinas,setRutinas,exes,wk,isViewingPast,
               h('div',{style:{background:'#F3E8FF',border:'1px solid #D8B4FE',borderRadius:'9px',padding:'10px',marginBottom:'8px'}},
                 h('div',{style:{fontSize:'12px',fontWeight:'900',color:'#7E22CE'}},'TEST INICIAL · 3–5 reps'),
                 h('div',{style:{display:'flex',gap:'7px',marginTop:'8px'}},
-                  h('input',{type:'text',inputMode:'decimal',placeholder:'kg',value:test.kg||'',disabled:isViewingPast,onChange:e=>patchForceNested(w,'test',{kg:e.target.value}),style:{...inp,textAlign:'center'}}),
-                  h('input',{type:'text',inputMode:'numeric',placeholder:'3–5 reps',value:test.reps||'',disabled:isViewingPast,onChange:e=>patchForceNested(w,'test',{reps:e.target.value}),style:{...inp,textAlign:'center'}})
+                  h('input',{type:'text',inputMode:'decimal',placeholder:'kg',value:test.kg||'',disabled:isReadOnly,onChange:e=>patchForceNested(w,'test',{kg:e.target.value}),style:{...inp,textAlign:'center'}}),
+                  h('input',{type:'text',inputMode:'numeric',placeholder:'3–5 reps',value:test.reps||'',disabled:isReadOnly,onChange:e=>patchForceNested(w,'test',{reps:e.target.value}),style:{...inp,textAlign:'center'}})
                 ),
-                valid&&!isViewingPast&&h('button',{onClick:()=>writeForce(w,{initial:{kgTestInicial:parseFloat(test.kg),repsTestInicial:parseInt(test.reps),e1RMInicial:calc}}),style:{width:'100%',marginTop:'8px',padding:'8px',border:'none',borderRadius:'8px',background:'#7E22CE',color:'#fff',fontWeight:'800'}},(ini.e1RMInicial?'Actualizar':'Guardar')+' referencia · e1RM '+calc+' kg'),
+                valid&&!isReadOnly&&h('button',{onClick:()=>writeForce(w,{initial:{kgTestInicial:parseFloat(test.kg),repsTestInicial:parseInt(test.reps),e1RMInicial:calc}}),style:{width:'100%',marginTop:'8px',padding:'8px',border:'none',borderRadius:'8px',background:'#7E22CE',color:'#fff',fontWeight:'800'}},(ini.e1RMInicial?'Actualizar':'Guardar')+' referencia · e1RM '+calc+' kg'),
                 ini.e1RMInicial&&h('div',{style:{fontSize:'11px',fontWeight:'800',color:'#6B21A8',marginTop:'7px'}},'e1RM inicial: '+ini.e1RMInicial+' kg')
               ),
               ini.e1RMInicial&&h('div',{style:{background:'#FFF7ED',border:'1px solid #FED7AA',borderRadius:'9px',padding:'10px'}},
                 h('div',{style:{fontSize:'12px',fontWeight:'900',color:'#9A3412'}},'BACK-OFF · 1×70% · fallo técnico'),
                 h('div',{style:{fontSize:'17px',fontWeight:'900',margin:'4px 0'}},backKg+' kg'),
-                h('input',{type:'text',inputMode:'numeric',placeholder:'Reps realizadas',value:fd.backoff?.s1||'',disabled:isViewingPast,onChange:e=>patchForceNested(w,'backoff',{s1:e.target.value}),style:{...inp,textAlign:'center'}})
+                h('input',{type:'text',inputMode:'numeric',placeholder:'Reps realizadas',value:fd.backoff?.s1||'',disabled:isReadOnly,onChange:e=>patchForceNested(w,'backoff',{s1:e.target.value}),style:{...inp,textAlign:'center'}})
               )
             );
           }
@@ -485,36 +498,38 @@ function Training({user,split,blockCfg,rutinas,setRutinas,exes,wk,isViewingPast,
             if(!ini.e1RMInicial)return h('div',{style:{background:'#FFF7ED',border:'1px solid #FED7AA',borderRadius:'9px',padding:'10px',fontSize:'12px',color:'#9A3412',fontWeight:'700'}},'Falta el test inicial de S1 para calcular este protocolo.');
             const kg=roundForce(ini.e1RMInicial*forcePct),back=roundForce(ini.e1RMInicial*.70),st=fd.proto?.['s'+blockWeek]||'';
             return h('div',null,
+              approxRows(kg,'fuerza'),
               h('div',{style:{background:'#EFF6FF',border:'1px solid #BFDBFE',borderRadius:'9px',padding:'10px',marginBottom:'8px'}},
                 h('div',{style:{fontSize:'12px',fontWeight:'900',color:'#1D4ED8'}},'TRABAJO PRINCIPAL · '+forceSets+'×'+forceReps+' @'+Math.round(forcePct*100)+'%'),
                 h('div',{style:{fontSize:'20px',fontWeight:'900',margin:'4px 0'}},kg+' kg'),
                 h('div',{style:{fontSize:'11px',color:'#64748B'}},'Calculado exclusivamente desde e1RM inicial S1: '+ini.e1RMInicial+' kg'),
-                !isViewingPast&&h('div',{style:{display:'flex',gap:'7px',marginTop:'9px'}},['si','no'].map(v=>h('button',{key:v,onClick:()=>patchForceNested(w,'proto',{['s'+blockWeek]:v}),style:{flex:1,padding:'8px',borderRadius:'8px',border:'1px solid '+(st===v?(v==='si'?G:R):'#ddd'),background:st===v?(v==='si'?G:'#FEF2F2'):'#fff',color:st===v?(v==='si'?'#fff':'#B91C1C'):'#666',fontWeight:'800'}},v==='si'?'Cumplí':'No cumplí'))),
-                isViewingPast&&h('div',{style:{fontSize:'12px',fontWeight:'800',marginTop:'8px'}},st==='si'?'✓ Cumplí':st==='no'?'No cumplí':'Sin registro')
+                !isReadOnly&&h('div',{style:{display:'flex',gap:'7px',marginTop:'9px'}},['si','no'].map(v=>h('button',{key:v,onClick:()=>patchForceNested(w,'proto',{['s'+blockWeek]:v}),style:{flex:1,padding:'8px',borderRadius:'8px',border:'1px solid '+(st===v?(v==='si'?G:R):'#ddd'),background:st===v?(v==='si'?G:'#FEF2F2'):'#fff',color:st===v?(v==='si'?'#fff':'#B91C1C'):'#666',fontWeight:'800'}},v==='si'?'Cumplí':'No cumplí'))),
+                isReadOnly&&h('div',{style:{fontSize:'12px',fontWeight:'800',marginTop:'8px'}},st==='si'?'✓ Cumplí':st==='no'?'No cumplí':'Sin registro')
               ),
               h('div',{style:{background:'#FFF7ED',border:'1px solid #FED7AA',borderRadius:'9px',padding:'10px'}},
                 h('div',{style:{fontSize:'12px',fontWeight:'900',color:'#9A3412'}},'BACK-OFF · 1×70% · fallo técnico'),
                 h('div',{style:{fontSize:'17px',fontWeight:'900',margin:'4px 0'}},back+' kg'),
-                h('input',{type:'text',inputMode:'numeric',placeholder:'Reps realizadas',value:fd.backoff?.['s'+blockWeek]||'',disabled:isViewingPast,onChange:e=>patchForceNested(w,'backoff',{['s'+blockWeek]:e.target.value}),style:{...inp,textAlign:'center'}})
+                h('input',{type:'text',inputMode:'numeric',placeholder:'Reps realizadas',value:fd.backoff?.['s'+blockWeek]||'',disabled:isReadOnly,onChange:e=>patchForceNested(w,'backoff',{['s'+blockWeek]:e.target.value}),style:{...inp,textAlign:'center'}})
               )
             );
           }
           const ret=fd.retest||{};const suggested=ini.kgTestInicial||'';const kg=ret.kg!==undefined?ret.kg:suggested;const reps=parseInt(ret.reps)||0;const er=kg&&reps?epley(kg,reps):0;
-          return h('div',{style:{background:'#ECFDF5',border:'1px solid #A7F3D0',borderRadius:'9px',padding:'10px'}},
+          return h('div',null,approxRows(suggested,'fuerza'),h('div',{style:{background:'#ECFDF5',border:'1px solid #A7F3D0',borderRadius:'9px',padding:'10px'}},
             h('div',{style:{fontSize:'12px',fontWeight:'900',color:'#047857'}},'RETEST · Semana 8'),
             h('div',{style:{fontSize:'11px',color:'#065F46',marginTop:'3px'}},'Peso inicial sugerido: el peso real usado en S1'+(suggested?' · '+suggested+' kg':'')),
             h('div',{style:{display:'flex',gap:'7px',marginTop:'8px'}},
-              h('input',{type:'text',inputMode:'decimal',placeholder:'kg',value:kg,disabled:isViewingPast,onChange:e=>patchForceNested(w,'retest',{kg:e.target.value}),style:{...inp,textAlign:'center'}}),
-              h('input',{type:'text',inputMode:'numeric',placeholder:'reps',value:ret.reps||'',disabled:isViewingPast,onChange:e=>patchForceNested(w,'retest',{reps:e.target.value}),style:{...inp,textAlign:'center'}})
+              h('input',{type:'text',inputMode:'decimal',placeholder:'kg',value:kg,disabled:isReadOnly,onChange:e=>patchForceNested(w,'retest',{kg:e.target.value}),style:{...inp,textAlign:'center'}}),
+              h('input',{type:'text',inputMode:'numeric',placeholder:'reps',value:ret.reps||'',disabled:isReadOnly,onChange:e=>patchForceNested(w,'retest',{reps:e.target.value}),style:{...inp,textAlign:'center'}})
             ),
             er>0&&h('div',{style:{fontSize:'12px',fontWeight:'900',color:'#047857',marginTop:'8px'}},'Nuevo e1RM: '+er+' kg'),
-            er>0&&!isViewingPast&&h('button',{onClick:()=>patchForceNested(w,'retest',{kg:parseFloat(kg),reps:reps,e1RMFinal:er}),style:{width:'100%',marginTop:'8px',padding:'8px',border:'none',borderRadius:'8px',background:G,color:'#fff',fontWeight:'800'}},'Guardar retest')
-          );
+            er>0&&!isReadOnly&&h('button',{onClick:()=>patchForceNested(w,'retest',{kg:parseFloat(kg),reps:reps,e1RMFinal:er}),style:{width:'100%',marginTop:'8px',padding:'8px',border:'none',borderRadius:'8px',background:G,color:'#fff',fontWeight:'800'}},'Guardar retest')
+          ));
         };
 
         const normalDose=()=>{
           const technique=block==='intensidad'&&w.role==='P';
           return h('div',null,
+            approxRows(curKg,block),
             h('div',{style:{background:'#FFF7ED',border:'1px solid #FED7AA',borderRadius:'9px',padding:'10px',marginBottom:'8px'}},
               h('div',{style:{fontSize:'13px',fontWeight:'900',color:'#9A3412'}},'Pauta: '+nSeries+' '+(nSeries===1?'serie':'series')+' × '+fixedRep+' reps'),
               h('div',{style:{fontSize:'11px',color:'#B45309',marginTop:'2px'}},'Usá el kg más alto que te permita completar la pauta con buena técnica.'),
@@ -522,7 +537,8 @@ function Training({user,split,blockCfg,rutinas,setRutinas,exes,wk,isViewingPast,
             ),
             curKg>0&&h('div',null,
               h('div',{style:{fontSize:'12px',fontWeight:'700',color:'#444',marginBottom:'7px'}},'¿Completaste '+nSeries+'×'+fixedRep+(technique&&ex.intensityTech?' + técnica':'')+' con buena técnica?'),
-              isViewingPast
+              estado&&h('div',{style:{fontSize:'11px',color:'#777',marginBottom:'7px'}},estado==='si'?'Próxima semana: '+rKg(curKg*1.05)+' kg':'Próxima semana: mantener '+curKg+' kg'),
+              isReadOnly
                 ?h('div',{style:{fontSize:'12px',fontWeight:'800',color:estado==='si'?G:estado==='no'?R:'#999'}},estado==='si'?'✓ Cumplí':estado==='no'?'No cumplí':'Sin registro')
                 :h('div',{style:{display:'flex',gap:'7px'}},
                     h('button',{onClick:()=>setEstado('si'),style:{flex:1,padding:'8px',borderRadius:'8px',border:'1px solid '+(estado==='si'?G:'#ddd'),background:estado==='si'?G:'#fff',color:estado==='si'?'#fff':'#666',fontWeight:'800'}},'Cumplí'),
@@ -641,11 +657,12 @@ function App(){
   const blockExpired=!!blockCfg&&(blockCfg.status==='done'||realBlockWeek>8);
   const currentBlockWeek=Math.min(8,Math.max(1,realBlockWeek));
   const isViewingPast=!!blockCfg&&wk.num<currentBlockWeek;
-  const weekLocked=isViewingPast;
+  const isViewingFuture=!!blockCfg&&wk.num>currentBlockWeek;
+  const weekLocked=isViewingPast||isViewingFuture;
   const now=new Date();
   const wkFinished=wk?.sun?(now>wk.sun||now.getDay()===0):false;
   const canSaveWeek=!!blockCfg&&!blockExpired&&wk.num===currentBlockWeek&&wkFinished;
-  const canGoNext=isViewingPast;
+  const canGoNext=!!blockCfg&&wk.num<8;
 
   function loadH(u){
     try{const list=JSON.parse(localStorage.getItem(HK(u||user))||'[]');const w=list.map(id=>{try{return JSON.parse(localStorage.getItem(SK(id,u||user)));}catch(e){return null;}}).filter(Boolean);setHist(w);}catch(e){setHist([]);}
@@ -671,6 +688,22 @@ function App(){
     setTimeout(()=>{dataLoaded.current=true;draftReady.current=true;},180);
   }
 
+  function applyPendingLoadForCurrentWeek(cfg,n){
+    if(!cfg||n<=1)return;
+    const marker=`bas_${user}_nextLoadApplied_${cfg.cycleId}_${n}`;
+    if(localStorage.getItem(marker))return;
+    const prevKey=`bas_${user}_nextLoad_${cfg.cycleId}_${n-1}`;
+    let pending={};try{pending=JSON.parse(localStorage.getItem(prevKey)||'{}')||{};}catch(e){}
+    if(!Object.keys(pending).length){try{localStorage.setItem(marker,'1');}catch(e){};return;}
+    let sk={};try{sk=JSON.parse(localStorage.getItem(`bas_${user}_sessKg`)||'{}')||{};}catch(e){}
+    Object.values(pending).forEach(sess=>Object.values(sess||{}).forEach(item=>{
+      if(!item||!item.exName)return;
+      if(item.decision==='si'&&parseFloat(item.nextKg)>0)sk[item.exName]=parseFloat(item.nextKg);
+      else if(item.decision==='no'&&parseFloat(item.baseKg)>0&&sk[item.exName]===undefined)sk[item.exName]=parseFloat(item.baseKg);
+    }));
+    try{localStorage.setItem(`bas_${user}_sessKg`,JSON.stringify(sk));localStorage.setItem(marker,'1');}catch(e){}
+  }
+
   useEffect(()=>{
     if(!user)return;
     const cfg=readBlockCfg(user);setBlockCfg(cfg);setSplit(cfg?.split||null);
@@ -679,6 +712,7 @@ function App(){
     loadH(user);
     if(!cfg)return;
     const n=Math.min(8,getBlockWeekNum(cfg));
+    applyPendingLoadForCurrentWeek(cfg,n);
     loadWeek(n,cfg);
 
     setLoading(true);
@@ -743,7 +777,7 @@ function App(){
   }
 
   function doSave(completeWeek){
-    if(!blockCfg||blockExpired)return;
+    if(!blockCfg||blockExpired||weekLocked)return;
     setSaving(true);
     try{
       const curSR=sessionRepsRef.current||{};
@@ -761,13 +795,13 @@ function App(){
     setSaving(false);
   }
   function save(){
-    if(!canSaveWeek&&!isViewingPast){const fmt=wk?.sun?wk.sun.toLocaleDateString('es-AR',{day:'numeric',month:'short'}):'fin de semana';alert('Guardar semana estará disponible al finalizar esta semana ('+fmt+').');return;}
+    if(!canSaveWeek){const fmt=wk?.sun?wk.sun.toLocaleDateString('es-AR',{day:'numeric',month:'short'}):'fin de semana';alert('Guardar semana estará disponible al finalizar esta semana ('+fmt+').');return;}
     doSave(true);
   }
   function saveProgress(){if(weekLocked)return;doSave(false);}
   function prevWeek(){if(!blockCfg||wk.num<=1)return;loadWeek(wk.num-1,blockCfg);}
   function goToCurrent(){if(!blockCfg)return;loadWeek(currentBlockWeek,blockCfg);}
-  function nextViewedWeek(){if(!blockCfg||wk.num>=currentBlockWeek)return;loadWeek(wk.num+1,blockCfg);}
+  function nextViewedWeek(){if(!blockCfg||wk.num>=8)return;loadWeek(wk.num+1,blockCfg);}
 
   function logout(){if(confirm('¿Cambiar nombre?')){localStorage.removeItem(USER_KEY);setUser(null);setBlockCfg(null);setSplit(null);}}
   const login=name=>{localStorage.setItem(USER_KEY,name);if(!localStorage.getItem(`bas_${name}_startdate`))localStorage.setItem(`bas_${name}_startdate`,isoToday());setUser(name);setBlockCfg(readBlockCfg(name));};
@@ -794,13 +828,14 @@ function App(){
         h('div',{style:{fontSize:'11px',color:'rgba(255,255,255,.45)',marginTop:'2px'}},BLOCK_LABELS[blockCfg.block]+' · '+wk.label)
       ),
       h('div',{style:{display:'flex',flexDirection:'column',gap:'4px',alignItems:'flex-end',minWidth:'145px'}},
-        h('button',{onClick:save,disabled:saving||saved===true||(!canSaveWeek&&!isViewingPast),style:{width:'100%',borderRadius:'9px',padding:'9px 10px',fontSize:'11px',fontWeight:'800',border:'none',background:saved===true?'#EAF7F2':(canSaveWeek||isViewingPast)?GRAD:'rgba(255,255,255,.14)',color:saved===true?G:'#fff'}},saving?'...':saved===true?'✓ Sem guardada':'Guardar semana'),
+        h('button',{onClick:save,disabled:saving||saved===true||!canSaveWeek,style:{width:'100%',borderRadius:'9px',padding:'9px 10px',fontSize:'11px',fontWeight:'800',border:'none',background:saved===true?'#EAF7F2':canSaveWeek?GRAD:'rgba(255,255,255,.14)',color:saved===true?G:'#fff'}},saving?'...':saved===true?'✓ Sem guardada':'Guardar semana'),
         h('button',{onClick:saveProgress,disabled:saving||weekLocked,style:{width:'100%',borderRadius:'8px',padding:'7px 10px',fontSize:'11px',fontWeight:'700',border:'1px solid rgba(255,255,255,.15)',background:saved==='progreso'?'rgba(55,138,221,.15)':'rgba(255,255,255,.08)',color:saved==='progreso'?B:'rgba(255,255,255,.65)'}},saved==='progreso'?'✓ Progreso guardado':weekLocked?'🔒 Solo lectura':'Guardar progreso'),
         h('div',{style:{display:'flex',gap:'4px',width:'100%'}},
           h('button',{onClick:prevWeek,disabled:wk.num<=1,style:{flex:1,padding:'6px 4px',fontSize:'10px',borderRadius:'7px',border:'1px solid rgba(255,255,255,.12)',background:'rgba(255,255,255,.06)',color:wk.num<=1?'rgba(255,255,255,.2)':'rgba(255,255,255,.65)'}},'←'),
-          isViewingPast?h('button',{onClick:goToCurrent,style:{flex:2,padding:'6px',fontSize:'10px',borderRadius:'7px',border:`1px solid ${AC}`,background:AC+'22',color:AC,fontWeight:'800'}},'Actual'):
-          h('button',{disabled:true,style:{flex:2,padding:'6px',fontSize:'10px',borderRadius:'7px',border:'1px solid rgba(255,255,255,.08)',background:'transparent',color:'rgba(255,255,255,.25)'}},'S'+wk.num+'/8'),
-          isViewingPast&&h('button',{onClick:nextViewedWeek,disabled:wk.num>=currentBlockWeek,style:{flex:1,padding:'6px 4px',fontSize:'10px',borderRadius:'7px',border:'1px solid rgba(255,255,255,.12)',background:'rgba(255,255,255,.06)',color:'rgba(255,255,255,.65)'}},'→')
+          (isViewingPast||isViewingFuture)
+            ?h('button',{onClick:goToCurrent,style:{flex:2,padding:'6px',fontSize:'10px',borderRadius:'7px',border:`1px solid ${AC}`,background:AC+'22',color:AC,fontWeight:'800'}},'Sem actual')
+            :h('button',{disabled:true,style:{flex:2,padding:'6px',fontSize:'10px',borderRadius:'7px',border:'1px solid rgba(255,255,255,.08)',background:'transparent',color:'rgba(255,255,255,.4)',fontWeight:'800'}},'S'+wk.num+'/8 · actual'),
+          h('button',{onClick:nextViewedWeek,disabled:wk.num>=8,style:{flex:1,padding:'6px 4px',fontSize:'10px',borderRadius:'7px',border:'1px solid rgba(255,255,255,.12)',background:'rgba(255,255,255,.06)',color:wk.num>=8?'rgba(255,255,255,.2)':'rgba(255,255,255,.65)'}},'→')
         )
       )
     ),
@@ -808,11 +843,12 @@ function App(){
       fallback&&h('div',{style:{background:'#FFF7ED',border:'1px solid #FED7AA',borderRadius:'10px',padding:'10px 12px',fontSize:'11px',color:'#9A3412',fontWeight:'700',marginBottom:'10px'}},'Plantilla transitoria: '+split+' está usando '+fallback+'. Creá la fila canónica en RutinasBasicas para completar esta estructura.'),
       loading&&h('div',{style:{...card,textAlign:'center',padding:'28px'}},'⏳ Cargando rutinas...'),
       isViewingPast&&h('div',{style:{background:'#111',borderRadius:'10px',padding:'10px 12px',color:'#fff',fontSize:'11px',fontWeight:'700',marginBottom:'10px'}},'🔒 Semana pasada · solo lectura'),
+      isViewingFuture&&h('div',{style:{background:'#EFF6FF',border:'1px solid #BFDBFE',borderRadius:'10px',padding:'10px 12px',color:'#1D4ED8',fontSize:'11px',fontWeight:'700',marginBottom:'10px'}},'👁 Semana futura · plan visible en solo lectura. El calendario habilita el registro cuando llegue.'),
       !loading&&tab==='d'&&h('div',null,
-        h('div',{style:card},h('div',{style:lbl},'Bloque activo'),h('div',{style:{fontSize:'20px',fontWeight:'900'}},BLOCK_LABELS[blockCfg.block]+' · Semana '+wk.num+'/8'),h('div',{style:{fontSize:'12px',color:'#777',marginTop:'5px'}},SPLIT_LABELS[split])),
+        h('div',{style:card},h('div',{style:lbl},'Bloque activo'),h('div',{style:{fontSize:'20px',fontWeight:'900'}},BLOCK_LABELS[blockCfg.block]+' · Semana '+wk.num+'/8'+(wk.num===currentBlockWeek?' · actual':wk.num<currentBlockWeek?' · pasada':' · futura')),h('div',{style:{fontSize:'12px',color:'#777',marginTop:'5px'}},SPLIT_LABELS[split])),
         h(Dashboard,{user,hist,exes,rutinas,split})
       ),
-      !loading&&tab==='t'&&h(Training,{user,split,blockCfg,rutinas,setRutinas,exes,wk,isViewingPast,sessionReps,setSessionReps,sessionKg,setSessionKg,hist,setSaved})
+      !loading&&tab==='t'&&h(Training,{user,split,blockCfg,rutinas,setRutinas,exes,wk,isViewingPast,isViewingFuture,sessionReps,setSessionReps,sessionKg,setSessionKg,hist,setSaved})
     ),
     h('div',{style:{background:'#0A0A0A',borderTop:'1px solid rgba(255,255,255,.06)',display:'flex',position:'sticky',bottom:0,zIndex:10}},TABS.map(t=>h('button',{key:t.id,onClick:()=>setTab(t.id),style:{flex:1,padding:'10px 2px 14px',fontSize:'10px',background:'none',border:'none',borderTop:tab===t.id?`2px solid ${AC}`:'2px solid transparent',color:tab===t.id?AC:'rgba(255,255,255,.35)',fontWeight:tab===t.id?'800':'400'}},h('span',{style:{fontSize:'18px',display:'block'}},t.ic),t.l)))
   );
