@@ -106,6 +106,13 @@ const SPLIT_LABELS={
   '5INFERIOR':'5 días · Prioridad tren inferior'
 };
 const BLOCK_LABELS={volumen:'Volumen',intensidad:'Intensidad',fuerza:'Fuerza'};
+const TECNICAS_INTENSIDAD=[
+  {id:'rp',n:'Rest-pause',d:'Llegá al fallo técnico, descansá 10–15 segundos y hacé algunas reps más con el mismo peso.'},
+  {id:'ds',n:'Drop set',d:'Llegá al fallo técnico, bajá el peso aproximadamente 20–30% y continuá sin descanso.'},
+  {id:'pa',n:'Parciales',d:'Después del fallo técnico, continuá con reps parciales en el tramo donde todavía podés mover la carga con control.'},
+  {id:'as',n:'Asistidas',d:'Después del fallo técnico, una ayuda mínima te permite completar 2–3 reps más sin perder el control.'},
+  {id:'ne',n:'Negativas',d:'Después del fallo técnico, hacé sólo la bajada muy lenta, 4–6 segundos, con ayuda para volver a la posición inicial.'}
+];
 const LEGACY_SPLIT_FALLBACK={'3FB':['3H','3M'],'4TP':['4H','4M'],'4AA':['4H','4M'],'5TORSO':['5H'],'5INFERIOR':['5M']};
 function isoToday(){return new Date().toISOString().split('T')[0];}
 function parseBasicDate(v){
@@ -128,7 +135,7 @@ function getBlockWk(cfg,num){
   const sun=new Date(mon);sun.setDate(mon.getDate()+6);
   const fmtDay=d=>d.toLocaleDateString('es-AR',{day:'numeric'});
   const fmtMes=d=>d.toLocaleDateString('es-AR',{month:'short'}).replace('.','');
-  const label=`S${num}/8 · ${fmtDay(mon)}-${fmtDay(sun)} ${fmtMes(sun).charAt(0).toUpperCase()+fmtMes(sun).slice(1)}`;
+  const label=num===9?`S9 · Bloque finalizado`:`S${num}/8 · ${fmtDay(mon)}-${fmtDay(sun)} ${fmtMes(sun).charAt(0).toUpperCase()+fmtMes(sun).slice(1)}`;
   const cycle=String(cfg?.cycleId||'legacy');
   return {id:`blk_${cycle}_sem_${num}`,num,label,mon,sun};
 }
@@ -309,6 +316,10 @@ function Training({user,split,blockCfg,rutinas,setRutinas,exes,wk,isViewingPast,
   const [kgVal,setKgVal]=useState('');
   const [exEquiv,setExEquiv]=useState(null);
   const [forceVer,setForceVer]=useState(0);
+  const [intensityVer,setIntensityVer]=useState(0);
+  const intensityKey=w=>{const id=w.origId!=null?String(w.origId):_norm(w.origName).replace(/[^a-z0-9]+/g,'_');return `bas_${user}_intensity_${blockCfg.cycleId}_${activeSess}_${id}`;};
+  const getIntensityTech=w=>{void intensityVer;try{const saved=localStorage.getItem(intensityKey(w));if(saved)return saved;}catch(e){}const prescribed=String(w.ex.intensityTech||'').trim();return prescribed;};
+  const setIntensityTech=(w,name)=>{if(isReadOnly)return;try{localStorage.setItem(intensityKey(w),name);}catch(e){}setIntensityVer(v=>v+1);setSaved(false);};
 
   const getKg=exName=>sessionKg?.[exName];
   const setKgForEx=(exName,kg)=>{
@@ -379,8 +390,8 @@ function Training({user,split,blockCfg,rutinas,setRutinas,exes,wk,isViewingPast,
     const kg=parseFloat(baseKg)||0;if(kg<=0)return null;
     const a1=roundForce(kg*.50),a2=roundForce(kg*.75);
     return h('div',{style:{marginBottom:'8px'}},
-      h('div',{style:{display:'flex',justifyContent:'space-between',padding:'6px 0',borderBottom:'1px solid #eee',fontSize:'11px'}},h('span',{style:{fontWeight:'800',color:'#666'}},'Aproximación 1'),h('span',null,(mode==='intensidad'?'15 reps · ':'')+a1+' kg')),
-      h('div',{style:{display:'flex',justifyContent:'space-between',padding:'6px 0',fontSize:'11px'}},h('span',{style:{fontWeight:'800',color:'#666'}},'Aproximación 2'),h('span',null,(mode==='intensidad'?'8 reps · ':'')+a2+' kg'))
+      h('div',{style:{display:'flex',justifyContent:'space-between',padding:'6px 0',borderBottom:'1px solid #eee',fontSize:'11px'}},h('span',{style:{fontWeight:'800',color:'#666'}},'Aproximación 1'),h('span',null,'12 reps · '+a1+' kg')),
+      h('div',{style:{display:'flex',justifyContent:'space-between',padding:'6px 0',fontSize:'11px'}},h('span',{style:{fontWeight:'800',color:'#666'}},'Aproximación 2'),h('span',null,'6 reps · '+a2+' kg'))
     );
   };
   const forceKey=w=>{
@@ -476,13 +487,15 @@ function Training({user,split,blockCfg,rutinas,setRutinas,exes,wk,isViewingPast,
         );
         const conceptLine=(content,style={})=>h('div',{style:{padding:'3px 0',fontSize:'11px',color:'#666',...style}},content);
         const header=h('div',{style:{marginBottom:'10px'}},
-          h('div',{style:{fontWeight:'900',fontSize:'15px',marginBottom:'5px'}},exName),
+          h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',gap:'10px',marginBottom:'5px'}},
+            h('div',{style:{fontWeight:'900',fontSize:'15px',paddingTop:'2px',flex:1}},exName),
+            kgBox&&h('div',{style:{flexShrink:0}},kgBox)
+          ),
           conceptLine(roleText(w.role),{fontWeight:'800',color:w.role==='P'?'#B91C1C':w.role==='N'?'#0369A1':'#666'}),
           ex.m&&conceptLine(ex.m),
           ex.url&&h('div',{style:{padding:'3px 0'}},h('button',{onClick:()=>setTut(tut===exName?null:exName),style:{background:'none',border:'none',padding:0,color:'#777',textDecoration:'underline',fontSize:'11px'}},tut===exName?'Cerrar tutorial':'Ver tutorial')),
           getEquivs(w).length>0&&h('div',{style:{padding:'3px 0'}},h('button',{onClick:()=>setExEquiv(w),style:{background:'none',border:'none',padding:0,color:AC,fontWeight:'800',fontSize:'11px'}},'≡ Equiv.')),
-          pr&&conceptLine('Anterior: '+pr.reps+' × '+pr.kg+' kg',{color:G,fontWeight:'800'}),
-          kgBox&&h('div',{style:{display:'flex',justifyContent:'flex-end',alignItems:'center',padding:'5px 0'}},kgBox)
+          pr&&conceptLine('Anterior: '+pr.reps+' × '+pr.kg+' kg',{color:G,fontWeight:'800'})
         );
 
         const forceMain=()=>{
@@ -493,6 +506,7 @@ function Training({user,split,blockCfg,rutinas,setRutinas,exes,wk,isViewingPast,
             return h('div',null,
               h('div',{style:{background:'#F3E8FF',border:'1px solid #D8B4FE',borderRadius:'9px',padding:'10px',marginBottom:'8px'}},
                 h('div',{style:{fontSize:'12px',fontWeight:'900',color:'#7E22CE'}},'TEST INICIAL · 3–5 reps'),
+                h('div',{style:{fontSize:'11px',color:'#6B21A8',marginTop:'4px',lineHeight:1.45}},'Antes del test hacé aproximaciones progresivas con cargas menores. Cuando estés preparado, elegí una carga con la que estimes alcanzar el fallo técnico entre 3 y 5 reps y registrá kg + reps reales.'),
                 h('div',{style:{display:'flex',gap:'7px',marginTop:'8px'}},
                   h('input',{type:'text',inputMode:'decimal',placeholder:'kg',value:test.kg||'',disabled:isReadOnly,onChange:e=>patchForceNested(w,'test',{kg:e.target.value}),style:{...inp,textAlign:'center'}}),
                   h('input',{type:'text',inputMode:'numeric',placeholder:'3–5 reps',value:test.reps||'',disabled:isReadOnly,onChange:e=>patchForceNested(w,'test',{reps:e.target.value}),style:{...inp,textAlign:'center'}})
@@ -515,21 +529,21 @@ function Training({user,split,blockCfg,rutinas,setRutinas,exes,wk,isViewingPast,
               h('div',{style:{background:'#EFF6FF',border:'1px solid #BFDBFE',borderRadius:'9px',padding:'10px',marginBottom:'8px'}},
                 h('div',{style:{fontSize:'12px',fontWeight:'900',color:'#1D4ED8'}},'TRABAJO PRINCIPAL · '+forceSets+'×'+forceReps+' @'+Math.round(forcePct*100)+'%'),
                 h('div',{style:{fontSize:'20px',fontWeight:'900',margin:'4px 0'}},kg+' kg'),
-                h('div',{style:{fontSize:'11px',color:'#64748B'}},'Calculado exclusivamente desde e1RM inicial S1: '+ini.e1RMInicial+' kg'),
                 !isReadOnly&&h('div',{style:{display:'flex',gap:'7px',marginTop:'9px'}},['si','no'].map(v=>h('button',{key:v,onClick:()=>patchForceNested(w,'proto',{['s'+blockWeek]:v}),style:{flex:1,padding:'8px',borderRadius:'8px',border:'1px solid '+(st===v?(v==='si'?G:R):'#ddd'),background:st===v?(v==='si'?G:'#FEF2F2'):'#fff',color:st===v?(v==='si'?'#fff':'#B91C1C'):'#666',fontWeight:'800'}},v==='si'?'Cumplí':'No cumplí'))),
-                isReadOnly&&h('div',{style:{fontSize:'12px',fontWeight:'800',marginTop:'8px'}},st==='si'?'✓ Cumplí':st==='no'?'No cumplí':'Sin registro')
+                isReadOnly&&st&&h('div',{style:{fontSize:'12px',fontWeight:'800',marginTop:'8px'}},st==='si'?'✓ Cumplí':'No cumplí')
               ),
               h('div',{style:{background:'#FFF7ED',border:'1px solid #FED7AA',borderRadius:'9px',padding:'10px'}},
                 h('div',{style:{fontSize:'12px',fontWeight:'900',color:'#9A3412'}},'BACK-OFF · 1×70% · fallo técnico'),
                 h('div',{style:{fontSize:'17px',fontWeight:'900',margin:'4px 0'}},back+' kg'),
-                h('input',{type:'text',inputMode:'numeric',placeholder:'Reps realizadas',value:fd.backoff?.['s'+blockWeek]||'',disabled:isReadOnly,onChange:e=>patchForceNested(w,'backoff',{['s'+blockWeek]:e.target.value}),style:{...inp,textAlign:'center'}})
+                isReadOnly?h('div',{style:{fontSize:'11px',color:'#9A3412',marginTop:'6px'}},fd.backoff?.['s'+blockWeek]?('Reps realizadas: '+fd.backoff['s'+blockWeek]):('El registro de reps se habilita cuando S'+blockWeek+' sea la semana actual.')):h('input',{type:'text',inputMode:'numeric',placeholder:'Reps realizadas',value:fd.backoff?.['s'+blockWeek]||'',onChange:e=>patchForceNested(w,'backoff',{['s'+blockWeek]:e.target.value}),style:{...inp,textAlign:'center'}})
               )
             );
           }
           const ret=fd.retest||{};const suggested=ini.kgTestInicial||'';const kg=ret.kg!==undefined?ret.kg:suggested;const reps=parseInt(ret.reps)||0;const er=kg&&reps?epley(kg,reps):0;
           return h('div',null,approxRows(suggested,'fuerza'),h('div',{style:{background:'#ECFDF5',border:'1px solid #A7F3D0',borderRadius:'9px',padding:'10px'}},
             h('div',{style:{fontSize:'12px',fontWeight:'900',color:'#047857'}},'RETEST · Semana 8'),
-            h('div',{style:{fontSize:'11px',color:'#065F46',marginTop:'3px'}},'Peso inicial sugerido: el peso real usado en S1'+(suggested?' · '+suggested+' kg':'')),
+            h('div',{style:{fontSize:'11px',color:'#065F46',marginTop:'3px',lineHeight:1.45}},'Hacé primero las aproximaciones indicadas. Después usá como referencia el peso real del test de S1 e intentá superar las reps manteniendo la técnica. Si necesitás ajustar el peso, podés hacerlo. Registrá kg + reps reales.'),
+            suggested&&h('div',{style:{fontSize:'11px',fontWeight:'800',color:'#047857',marginTop:'5px'}},'Peso de referencia S1: '+suggested+' kg'),
             h('div',{style:{display:'flex',gap:'7px',marginTop:'8px'}},
               h('input',{type:'text',inputMode:'decimal',placeholder:'kg',value:kg,disabled:isReadOnly,onChange:e=>patchForceNested(w,'retest',{kg:e.target.value}),style:{...inp,textAlign:'center'}}),
               h('input',{type:'text',inputMode:'numeric',placeholder:'reps',value:ret.reps||'',disabled:isReadOnly,onChange:e=>patchForceNested(w,'retest',{reps:e.target.value}),style:{...inp,textAlign:'center'}})
@@ -546,12 +560,16 @@ function Training({user,split,blockCfg,rutinas,setRutinas,exes,wk,isViewingPast,
             h('div',{style:{background:'#FFF7ED',border:'1px solid #FED7AA',borderRadius:'9px',padding:'10px',marginBottom:'8px'}},
               h('div',{style:{fontSize:'13px',fontWeight:'900',color:'#9A3412'}},'Pauta: '+nSeries+' '+(nSeries===1?'serie':'series')+' × '+fixedRep+' reps'),
               h('div',{style:{fontSize:'11px',color:'#B45309',marginTop:'2px'}},'Usá el kg más alto que te permita completar la pauta con buena técnica.'),
-              technique&&h('div',{style:{marginTop:'8px',paddingTop:'8px',borderTop:'1px solid #FED7AA',fontSize:'11px',fontWeight:'800',color:'#7C2D12'}},'Técnica de intensidad: '+(ex.intensityTech||'NO CONFIGURADA EN SHEET'))
+              technique&&h('div',{style:{marginTop:'9px',paddingTop:'9px',borderTop:'1px solid #FED7AA'}},
+                h('div',{style:{fontSize:'11px',fontWeight:'800',color:'#7C2D12',marginBottom:'7px'}},'Técnica de intensidad'),
+                h('div',{style:{display:'flex',gap:'6px',flexWrap:'wrap'}},TECNICAS_INTENSIDAD.map(t=>{const sel=getIntensityTech(w)===t.n;return h('button',{key:t.id,disabled:isReadOnly,onClick:()=>setIntensityTech(w,t.n),style:{padding:'6px 9px',borderRadius:'999px',border:'1px solid '+(sel?'#7C2D12':'#FED7AA'),background:sel?'#7C2D12':'#fff',color:sel?'#fff':'#9A3412',fontSize:'10px',fontWeight:'800',cursor:isReadOnly?'default':'pointer'}},t.n);})),
+                (function(){const chosen=TECNICAS_INTENSIDAD.find(t=>t.n===getIntensityTech(w));return chosen?h('div',{style:{fontSize:'11px',color:'#7C2D12',lineHeight:1.45,marginTop:'7px'}},chosen.d):h('div',{style:{fontSize:'11px',color:'#B45309',marginTop:'7px'}},'Elegí una técnica para este ejercicio.');})()
+              )
             ),
             isViewingFuture
               ?h('div',{style:{fontSize:'11px',color:'#64748B',padding:'7px 0'}},projectedKg!=null?'Carga prevista para esta semana: '+projectedKg+' kg. Se aplicará a sessKg cuando el calendario llegue a S'+wk.num+'.':'La carga de esta semana todavía depende del cumplimiento de la semana anterior.')
               :curKg>0&&h('div',null,
-                  h('div',{style:{fontSize:'12px',fontWeight:'700',color:'#444',marginBottom:'7px'}},'¿Completaste '+nSeries+'×'+fixedRep+(technique&&ex.intensityTech?' + técnica':'')+' con buena técnica?'),
+                  h('div',{style:{fontSize:'12px',fontWeight:'700',color:'#444',marginBottom:'7px'}},'¿Completaste '+nSeries+'×'+fixedRep+(technique&&getIntensityTech(w)?' + '+getIntensityTech(w):'')+' con buena técnica?'),
                   estado&&h('div',{style:{fontSize:'11px',color:'#777',marginBottom:'7px'}},estado==='si'?'Próxima semana: '+rKg(curKg*1.05)+' kg':'Próxima semana: mantener '+curKg+' kg'),
                   isViewingPast
                     ?h('div',{style:{fontSize:'12px',fontWeight:'800',color:estado==='si'?G:estado==='no'?R:'#999'}},estado==='si'?'✓ Cumplí':estado==='no'?'No cumplí':'Sin registro')
@@ -641,11 +659,11 @@ function Dashboard({user,hist,exes,rutinas,split}){
 // ── CÓMO FUNCIONA ─────────────────────────────────────────────────────
 function HowWorks({blockCfg,split,wk}){
   const slots=[
-    ['Cómo registrar','Texto pendiente de revisión.'],
-    ['Cómo progresa la carga','Texto pendiente de revisión.'],
-    ['Volumen','Texto pendiente de revisión.'],
-    ['Intensidad','Texto pendiente de revisión.'],
-    ['Fuerza','Texto pendiente de revisión.']
+    ['Cómo registrar','Cargá el peso que realmente usaste y completá la pauta indicada. Al terminar, marcá Cumplí o No cumplí. La app guarda esa exposición y prepara la siguiente.'],
+    ['Cómo progresa la carga','Cumplí → la próxima exposición sube 5%. No cumplí → mantiene la misma carga. El peso nunca cambia en la semana que estás registrando: el ajuste se aplica recién en la siguiente.'],
+    ['Volumen','Los ejercicios prioritarios aumentan progresivamente sus series durante el bloque. Los demás mantienen una dosis estable. La carga progresa según Cumplí / No cumplí.'],
+    ['Intensidad','El volumen se mantiene estable y los ejercicios prioritarios incorporan una técnica de intensidad. La técnica permite extender el esfuerzo sin agregar más series.'],
+    ['Fuerza','El ejercicio principal sigue un protocolo propio: test inicial en S1, trabajo por porcentajes del e1RM inicial entre S2–S7 y retest en S8. Los demás ejercicios continúan con la progresión habitual.']
   ];
   return h('div',null,
     h('div',{style:{...card,background:'#111',color:'#fff'}},
@@ -661,6 +679,18 @@ function HowWorks({blockCfg,split,wk}){
 }
 
 // ── APP ───────────────────────────────────────────────────────────────
+function BlockFinishedPreview({blockCfg,onCurrent}){
+  return h('div',null,
+    h('div',{style:{...card,textAlign:'center',padding:'28px 20px'}},
+      h('div',{style:{fontSize:'36px',marginBottom:'8px'}},'✓'),
+      h('div',{style:{fontSize:'20px',fontWeight:'900'}},'S9 · Bloque finalizado'),
+      h('div',{style:{fontSize:'12px',color:'#777',lineHeight:1.5,marginTop:'7px'}},'S1–S8 son semanas planificadas. En S9 termina el ciclo y se habilita la elección del próximo bloque.'),
+      h('div',{style:{fontSize:'11px',color:'#999',marginTop:'8px'}},'Esta vista es sólo una previsualización. El nuevo bloque se habilita cuando el calendario llegue a S9.'),
+      h('button',{onClick:onCurrent,style:{marginTop:'14px',padding:'9px 14px',borderRadius:'8px',border:'1px solid #ddd',background:'#fff',fontWeight:'800',cursor:'pointer'}},'Volver a semana actual')
+    )
+  );
+}
+
 function BlockFinished({user,blockCfg,onNext}){
   return h('div',{style:{maxWidth:'480px',margin:'0 auto',minHeight:'100vh',background:'#0A0A0A',display:'flex',alignItems:'center',justifyContent:'center',padding:'28px'}},
     h('div',{style:{width:'100%',background:'#fff',borderRadius:'18px',padding:'24px',textAlign:'center'}},
@@ -691,7 +721,7 @@ function App(){
   const sessionRepsRef=useRef({});sessionRepsRef.current=sessionReps;
 
   const realBlockWeek=blockCfg?getBlockWeekNum(blockCfg):1;
-  const blockExpired=!!blockCfg&&(blockCfg.status==='done'||realBlockWeek>8);
+  const blockExpired=!!blockCfg&&realBlockWeek>8;
   const currentBlockWeek=Math.min(8,Math.max(1,realBlockWeek));
   const isViewingPast=!!blockCfg&&wk.num<currentBlockWeek;
   const isViewingFuture=!!blockCfg&&wk.num>currentBlockWeek;
@@ -699,7 +729,7 @@ function App(){
   const now=new Date();
   const wkFinished=wk?.sun?(now>wk.sun||now.getDay()===0):false;
   const canSaveWeek=!!blockCfg&&!blockExpired&&wk.num===currentBlockWeek&&wkFinished;
-  const canGoNext=!!blockCfg&&wk.num<8;
+  const canGoNext=!!blockCfg&&wk.num<9;
 
   function loadH(u){
     try{const list=JSON.parse(localStorage.getItem(HK(u||user))||'[]');const w=list.map(id=>{try{return JSON.parse(localStorage.getItem(SK(id,u||user)));}catch(e){return null;}}).filter(Boolean);setHist(w);}catch(e){setHist([]);}
@@ -827,7 +857,6 @@ function App(){
       localStorage.setItem(SK(wk.id,user),JSON.stringify(d));
       const list=JSON.parse(localStorage.getItem(HK(user))||'[]');if(!list.includes(wk.id)){list.push(wk.id);localStorage.setItem(HK(user),JSON.stringify(list));}
       setSaved(completeWeek?true:'progreso');loadH();
-      if(completeWeek&&wk.num===8){const done={...blockCfg,status:'done',finishedAt:isoToday()};localStorage.setItem(BLOCK_KEY(user),JSON.stringify(done));setBlockCfg(done);}
     }catch(e){console.error(e);alert('No se pudo guardar el progreso. No se borró información anterior.');}
     setSaving(false);
   }
@@ -838,9 +867,9 @@ function App(){
   function saveProgress(){if(weekLocked)return;doSave(false);}
   function prevWeek(){if(!blockCfg||wk.num<=1)return;loadWeek(wk.num-1,blockCfg);}
   function goToCurrent(){if(!blockCfg)return;loadWeek(currentBlockWeek,blockCfg);}
-  function nextViewedWeek(){if(!blockCfg||wk.num>=8)return;loadWeek(wk.num+1,blockCfg);}
+  function nextViewedWeek(){if(!blockCfg||wk.num>=9)return;loadWeek(wk.num+1,blockCfg);}
 
-  function logout(){if(confirm('¿Cambiar nombre?')){localStorage.removeItem(USER_KEY);setUser(null);setBlockCfg(null);setSplit(null);}}
+  function logout(){if(confirm('¿Cambiar nombre? La próxima vez que entres vas a elegir nuevamente días, estructura y bloque. Tus cargas, historial y equivalencias se conservan.')){try{localStorage.removeItem(USER_KEY);localStorage.removeItem(BLOCK_KEY(user));localStorage.removeItem(`bas_${user}_split`);}catch(e){}setUser(null);setBlockCfg(null);setSplit(null);}}
   const login=name=>{localStorage.setItem(USER_KEY,name);if(!localStorage.getItem(`bas_${name}_startdate`))localStorage.setItem(`bas_${name}_startdate`,isoToday());setUser(name);setBlockCfg(readBlockCfg(name));};
   const startBlock=cfg=>{setBlockCfg(cfg);setSplit(cfg.split);setTab('t');};
   const chooseNextBlock=()=>{
@@ -872,7 +901,7 @@ function App(){
           (isViewingPast||isViewingFuture)
             ?h('button',{onClick:goToCurrent,style:{flex:2,padding:'6px',fontSize:'10px',borderRadius:'7px',border:`1px solid ${AC}`,background:AC+'22',color:AC,fontWeight:'800'}},'Sem actual')
             :h('button',{disabled:true,style:{flex:2,padding:'6px',fontSize:'10px',borderRadius:'7px',border:'1px solid rgba(255,255,255,.08)',background:'transparent',color:'rgba(255,255,255,.4)',fontWeight:'800'}},'S'+wk.num+'/8 · actual'),
-          h('button',{onClick:nextViewedWeek,disabled:wk.num>=8,style:{flex:1,padding:'6px 4px',fontSize:'10px',borderRadius:'7px',border:'1px solid rgba(255,255,255,.12)',background:'rgba(255,255,255,.06)',color:wk.num>=8?'rgba(255,255,255,.2)':'rgba(255,255,255,.65)'}},'→')
+          h('button',{onClick:nextViewedWeek,disabled:wk.num>=9,style:{flex:1,padding:'6px 4px',fontSize:'10px',borderRadius:'7px',border:'1px solid rgba(255,255,255,.12)',background:'rgba(255,255,255,.06)',color:wk.num>=9?'rgba(255,255,255,.2)':'rgba(255,255,255,.65)'}},'→')
         )
       )
     ),
@@ -880,8 +909,9 @@ function App(){
       loading&&h('div',{style:{...card,textAlign:'center',padding:'28px'}},'⏳ Cargando rutinas...'),
       isViewingPast&&h('div',{style:{background:'#111',borderRadius:'10px',padding:'10px 12px',color:'#fff',fontSize:'11px',fontWeight:'700',marginBottom:'10px'}},'🔒 Semana pasada · solo lectura'),
       isViewingFuture&&h('div',{style:{background:'#EFF6FF',border:'1px solid #BFDBFE',borderRadius:'10px',padding:'10px 12px',color:'#1D4ED8',fontSize:'11px',fontWeight:'700',marginBottom:'10px'}},'👁 Semana futura · plan visible en solo lectura. El calendario habilita el registro cuando llegue.'),
-      !loading&&tab==='d'&&h(HowWorks,{blockCfg,split,wk}),
-      !loading&&tab==='t'&&h(Training,{user,split,blockCfg,rutinas,setRutinas,exes,wk,isViewingPast,isViewingFuture,sessionReps,setSessionReps,sessionKg,setSessionKg,hist,setSaved})
+      !loading&&wk.num===9&&h(BlockFinishedPreview,{blockCfg,onCurrent:goToCurrent}),
+      !loading&&wk.num!==9&&tab==='d'&&h(HowWorks,{blockCfg,split,wk}),
+      !loading&&wk.num!==9&&tab==='t'&&h(Training,{user,split,blockCfg,rutinas,setRutinas,exes,wk,isViewingPast,isViewingFuture,sessionReps,setSessionReps,sessionKg,setSessionKg,hist,setSaved})
     ),
     h('div',{style:{background:'#0A0A0A',borderTop:'1px solid rgba(255,255,255,.06)',display:'flex',position:'sticky',bottom:0,zIndex:10}},TABS.map(t=>h('button',{key:t.id,onClick:()=>setTab(t.id),style:{flex:1,padding:'10px 2px 14px',fontSize:'10px',background:'none',border:'none',borderTop:tab===t.id?`2px solid ${AC}`:'2px solid transparent',color:tab===t.id?AC:'rgba(255,255,255,.35)',fontWeight:tab===t.id?'800':'400'}},h('span',{style:{fontSize:'18px',display:'block'}},t.ic),t.l)))
   );
